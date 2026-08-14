@@ -314,7 +314,6 @@ const CONFIG = {
   ],
   SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyS_PYuey68bfGps0NRn8sa-rCYXfFPMEYnIguh2eKsqHYmWYMSfMD-4wgZnjw9EVgC0A/exec",
   COOLDOWN_SECONDS: 30,
-  DEFAULT_PASSWORD: "12345678",
 };
 /* ============================================================ */
 
@@ -358,7 +357,7 @@ async function verifyLogin(code, pass){
   const resp = await fetchWithTimeout(CONFIG.SCRIPT_URL, {
     method: 'POST',
     headers: {'Content-Type': 'text/plain;charset=utf-8'},
-    body: JSON.stringify({ action: 'login', code, pass, defaultPassword: CONFIG.DEFAULT_PASSWORD }),
+    body: JSON.stringify({ action: 'login', code, pass }),
   }, 12000);
   return await resp.json();
 }
@@ -395,6 +394,7 @@ async function doLogin(){
     loginCard.style.display = 'none';
     mainCard.style.display = '';
     empCodeInput.value = user;
+    currentSessionToken = result.token || null;
     const name = result.name || "";
     if(name){
       welcomeName.textContent = 'أهلاً يا ' + name + ' (كود ' + user + ') 👋';
@@ -403,12 +403,9 @@ async function doLogin(){
       welcomeName.style.display = 'none';
     }
     try{
+      // بنحفظ كود الموظف بس، عشان يسهل عليه ملء الخانة تاني —
+      // كلمة المرور ما بتتحفظش في المتصفح خالص تحت أي ظرف.
       localStorage.setItem('ghs_emp_code', user);
-      if(rememberMe.checked){
-        localStorage.setItem('ghs_emp_pass', pass);
-      }else{
-        localStorage.removeItem('ghs_emp_pass');
-      }
     }catch(e){}
   }catch(err){
     if(err.name === 'AbortError'){
@@ -457,7 +454,7 @@ cpBtn.addEventListener('click', async () => {
     const resp = await fetch(CONFIG.SCRIPT_URL, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain;charset=utf-8'},
-      body: JSON.stringify({ action: 'changepassword', code, oldPass, newPass, defaultPassword: CONFIG.DEFAULT_PASSWORD }),
+      body: JSON.stringify({ action: 'changepassword', code, oldPass, newPass }),
     });
     const result = await resp.json();
     if(result.status === 'ok'){
@@ -480,11 +477,6 @@ window.addEventListener('load', () => {
   try{
     const saved = localStorage.getItem('ghs_emp_code');
     if(saved) loginUser.value = saved;
-    const savedPass = localStorage.getItem('ghs_emp_pass');
-    if(savedPass){
-      loginPass.value = savedPass;
-      rememberMe.checked = true;
-    }
   }catch(e){}
   loginUser.focus({ preventScroll: true });
 });
@@ -499,6 +491,12 @@ const datePill = document.getElementById('datePill');
 const cameraInput = document.getElementById('cameraInput');
 
 let pendingCheckIn = null;
+// Session Token بعد تسجيل دخول ناجح، محفوظ في الذاكرة بس (مش
+// localStorage ولا أي تخزين دائم) — بيتبعت مع كل طلب تسجيل
+// حضور/انصراف بدل كلمة المرور، وبيتمسح تلقائيًا لو الصفحة اتقفلت
+// أو حصلها ريفريش، وبينتهي من عند السيرفر بعد فترة زمنية معقولة
+// حتى لو الصفحة فاضلة مفتوحة.
+let currentSessionToken = null;
 let activeBtn = null;
 
 try{
@@ -558,6 +556,42 @@ function markLocalAttempt(type){
   try{ localStorage.setItem('ghs_last_' + type, String(Date.now())); }catch(e){}
 }
 
+// بيصغّر الصورة قبل ما نبعتها، عشان الرفع يبقى أسرع بكتير — الصورة
+// أصلاً بتتعرض بحجم 100×100 بس جوه الشيت، فمفيش داعي نبعت صورة
+// الكاميرا الأصلية اللي ممكن تكون كذا ميجابايت. بنرجعها لأقصى بُعد
+// 500 بكسل وجودة JPEG معقولة (0.7)، وده بيقلل الحجم بشكل كبير جدًا
+// من غير ما يأثر على وضوحها في المكان الصغير اللي هتظهر فيه.
+function resizeImageToBase64(file, maxDimension, quality){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+      if(width > maxDimension || height > maxDimension){
+        if(width >= height){
+          height = Math.round(height * (maxDimension / width));
+          width = maxDimension;
+        }else{
+          width = Math.round(width * (maxDimension / height));
+          height = maxDimension;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('تعذّر تحميل الصورة للتصغير'));
+    };
+    img.src = objectUrl;
+  });
+}
+
 function fileToBase64(file){
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -578,12 +612,13 @@ async function sendCheckInOut(type, code, lat, lng, distance, locationName, phot
       headers: {'Content-Type': 'text/plain;charset=utf-8'},
       body: JSON.stringify({
         type: type,
-        code: code,
+        token: currentSessionToken || "",
         // ملحوظة: مش بنبعت وقت الموبايل خالص — السيرفر (جوجل) هو اللي
         // بيسجل الوقت لحظة استلام الطلب، عشان محدش يقدر يتلاعب بساعته.
+        // كمان مش بنبعت مسافة ولا اسم نقطة جاهزين، ولا حتى كود الموظف —
+        // السيرفر بيحدد الموظف من التوكن نفسه، ويحسب المسافة ويحسم
+        // القرار بنفسه من الإحداثيات الخام بس.
         lat: lat, lng: lng,
-        distance_m: Math.round(distance),
-        location: locationName,
         photo: photoBase64 || "",
       }),
     });
@@ -628,7 +663,13 @@ cameraInput.addEventListener('change', async () => {
   }
   btn.querySelector('.btnLabel').textContent = 'بيرفع الصورة ويسجل...';
   try{
-    const base64 = await fileToBase64(file);
+    let base64;
+    try{
+      base64 = await resizeImageToBase64(file, 500, 0.7);
+    }catch(resizeErr){
+      // لو التصغير فشل لأي سبب، نبعت الصورة الأصلية بدل ما نمنع التسجيل خالص
+      base64 = await fileToBase64(file);
+    }
     const { type, code, lat, lng, distance, locationName } = pendingCheckIn;
     await sendCheckInOut(type, code, lat, lng, distance, locationName, base64);
   }catch(err){
