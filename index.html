@@ -1055,7 +1055,7 @@ function handleClick(btn){
       if(err.code === 3) msg = T('err_geoTimeout');
       showStatus('warn', T('err_geoFailTitle'), msg);
     },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
   );
 }
 
