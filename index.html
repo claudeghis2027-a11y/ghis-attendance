@@ -309,7 +309,6 @@
           <span class="ring"></span>
           <span class="ring2"></span>
         </button>
-        <input type="file" id="cameraInput" accept="image/*" capture="user" style="display:none;">
       </div>
 
       <div class="status" id="statusBox"></div>
@@ -763,7 +762,6 @@ const empCodeInput = document.getElementById('empCode');
 const metaTime = document.getElementById('metaTime');
 const metaDist = document.getElementById('metaDist');
 const datePill = document.getElementById('datePill');
-const cameraInput = document.getElementById('cameraInput');
 
 let pendingCheckIn = null;
 // Session Token بعد تسجيل دخول ناجح، محفوظ في الذاكرة بس (مش
@@ -773,6 +771,220 @@ let pendingCheckIn = null;
 // حتى لو الصفحة فاضلة مفتوحة.
 let currentSessionToken = null;
 let activeBtn = null;
+
+// ============================================================
+// ⚠️ Face Verification — Client-side بالكامل. Reference Photo
+// بتتقرا من GHIS وقت الحاجة بس (صفر تخزين محلي دائم). الـSelfie
+// وFace Descriptor يعيشوا في الذاكرة (RAM) بس أثناء المقارنة،
+// وبيتم التخلص منهم فورًا بعد كده (نجحت المقارنة أو فشلت) — صفر
+// إرسال للسيرفر، صفر تخزين في Drive/Sheets/Properties/Cache/Logs.
+// المكتبة (face-api.js) والـModels لازم تكونوا مُستضافين محليًا
+// على نفس استضافة الصفحة دي، في المسارات المحددة تحت.
+// ============================================================
+const FACE_API_SCRIPT_PATH = './face-api/face-api.min.js';
+const FACE_API_MODELS_PATH = './models';
+// ⚠️ Threshold مبدئي غير نهائي — يحتاج معايرة حقيقية على بيانات
+// فعلية قبل الاعتماد النهائي عليه في الإنتاج.
+const FACE_MATCH_DISTANCE_THRESHOLD = 0.6;
+const FACE_DETECTION_TIMEOUT_MS = 15000;
+
+let faceApiModelsLoaded = false;
+let faceApiLoadPromise = null;
+
+function loadFaceApiScript_() {
+  return new Promise((resolve, reject) => {
+    if (window.faceapi) { resolve(); return; }
+    const script = document.createElement('script');
+    script.src = FACE_API_SCRIPT_PATH;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('face_api_script_load_failed'));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureFaceApiModelsLoaded(){
+  if (faceApiModelsLoaded) return;
+  if (!faceApiLoadPromise) {
+    faceApiLoadPromise = (async () => {
+      await loadFaceApiScript_();
+      await Promise.all([
+        window.faceapi.nets.ssdMobilenetv1.loadFromUri(FACE_API_MODELS_PATH),
+        window.faceapi.nets.faceLandmark68Net.loadFromUri(FACE_API_MODELS_PATH),
+        window.faceapi.nets.faceRecognitionNet.loadFromUri(FACE_API_MODELS_PATH),
+      ]);
+      faceApiModelsLoaded = true;
+    })();
+  }
+  return faceApiLoadPromise;
+}
+
+// ⬅️ بيرجع Descriptor واحد (Float32Array) من عنصر صورة/فيديو، أو
+// null لو صفر وش أو أكتر من وش. صفر تخزين لأي بيانات وسيطة خارج
+// نطاق الدالة دي.
+async function detectSingleFaceDescriptor(imageOrVideoElement){
+  const detections = await window.faceapi
+    .detectAllFaces(imageOrVideoElement)
+    .withFaceLandmarks()
+    .withFaceDescriptors();
+  if (!detections || detections.length === 0) return { status: 'no_face' };
+  if (detections.length > 1) return { status: 'multiple_faces' };
+  return { status: 'ok', descriptor: detections[0].descriptor };
+}
+
+// ⬅️ بترجع الـReference Photo (Base64) للموظف الحالي من GHIS عبر
+// نظام البصمة — الكود بيتحدد من التوكن بس في الباك إند، صفر إرسال
+// لكود موظف من هنا.
+async function fetchReferencePhoto(){
+  const resp = await fetch(CONFIG.SCRIPT_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({ action: 'getReferencePhoto', token: currentSessionToken || '' }),
+  });
+  return resp.json();
+}
+
+async function requestVerificationProof(operationType){
+  const resp = await fetch(CONFIG.SCRIPT_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({ action: 'issueVerificationProof', token: currentSessionToken || '', operationType }),
+  });
+  return resp.json();
+}
+
+// ⬅️ بتفتح كاميرا حية (Live Stream)، تحاول تكتشف وش واحد لحد ما
+// تنجح أو ينتهي الـTimeout. بترجع الـDescriptor في الذاكرة بس، مع
+// دالة cleanup لازم تتنادى فورًا بعد الاستخدام (نجح أو فشل) عشان
+// توقف الـStream وتفرّغ كل المتغيرات.
+function openLiveCameraForVerification(videoElement){
+  return new Promise((resolve, reject) => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      reject(new Error('camera_not_supported'));
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+      .then(stream => {
+        videoElement.srcObject = stream;
+        videoElement.play();
+        resolve(stream);
+      })
+      .catch(() => reject(new Error('camera_permission_denied')));
+  });
+}
+
+function stopCameraStream(stream){
+  if (!stream) return;
+  stream.getTracks().forEach(track => track.stop());
+}
+
+// ⬅️ الدالة المحورية — الـFlow الكامل: قراءة Reference Photo →
+// تحميل face-api.js/Models → فتح كاميرا حية → Detection متكرر لحد
+// النجاح/الـTimeout → مقارنة → عند النجاح بس: issueVerificationProof.
+// بترجع { outcome, proofToken? } — outcome من: 'not_available',
+// 'technical_failure', 'match', 'no_match', 'camera_denied',
+// 'no_face_timeout', 'multiple_faces'.
+async function runFaceVerification(operationType){
+  let refPhotoResp;
+  try {
+    refPhotoResp = await fetchReferencePhoto();
+  } catch (err) {
+    return { outcome: 'technical_failure' };
+  }
+  if (!refPhotoResp || refPhotoResp.status !== 'ok') {
+    return { outcome: 'technical_failure' };
+  }
+  if (!refPhotoResp.hasReferencePhoto) {
+    // NOT_AVAILABLE أو TECHNICAL_FAILURE من الباك إند — الاتنين
+    // بيتعاملوا هنا بنفس الطريقة: تخطّي التحقق، الباك إند بيسجل
+    // Metadata مناسبة بنفسه.
+    return { outcome: 'not_available' };
+  }
+
+  try {
+    await ensureFaceApiModelsLoaded();
+  } catch (err) {
+    return { outcome: 'technical_failure' };
+  }
+
+  // ⬅️ Reference Descriptor — بيتحسب مرة واحدة من صورة GHIS، في
+  // الذاكرة بس، صفر تخزين.
+  const refImg = new Image();
+  const refImgLoaded = new Promise((resolve, reject) => {
+    refImg.onload = () => resolve();
+    refImg.onerror = () => reject(new Error('reference_photo_decode_failed'));
+  });
+  refImg.src = refPhotoResp.referencePhotoBase64;
+  try {
+    await refImgLoaded;
+  } catch (err) {
+    return { outcome: 'technical_failure' };
+  }
+  const refDetection = await detectSingleFaceDescriptor(refImg);
+  refImg.src = ''; // تفريغ فوري
+  if (refDetection.status !== 'ok') {
+    // صورة مرجعية موجودة بس مفيهاش وش واضح — فشل تقني في المصدر
+    return { outcome: 'technical_failure' };
+  }
+  const referenceDescriptor = refDetection.descriptor;
+
+  const videoElement = document.createElement('video');
+  videoElement.setAttribute('playsinline', '');
+  videoElement.muted = true;
+
+  let stream = null;
+  try {
+    stream = await openLiveCameraForVerification(videoElement);
+  } catch (err) {
+    return { outcome: 'camera_denied' };
+  }
+
+  const startTime = Date.now();
+  let matchOutcome = null;
+  try {
+    while (Date.now() - startTime < FACE_DETECTION_TIMEOUT_MS) {
+      const liveDetection = await detectSingleFaceDescriptor(videoElement);
+      if (liveDetection.status === 'multiple_faces') {
+        matchOutcome = { outcome: 'multiple_faces' };
+        break;
+      }
+      if (liveDetection.status === 'ok') {
+        const distance = window.faceapi.euclideanDistance(referenceDescriptor, liveDetection.descriptor);
+        matchOutcome = distance <= FACE_MATCH_DISTANCE_THRESHOLD
+          ? { outcome: 'match' }
+          : { outcome: 'no_match' };
+        break;
+      }
+      // no_face — استمرار المحاولة لحد الـTimeout
+      await new Promise(r => setTimeout(r, 300));
+    }
+  } finally {
+    // ⬅️ التخلص الفوري من الـStream والـFrame — قبل حتى ما نكمل أي
+    // خطوة تانية، بغض النظر عن النتيجة.
+    stopCameraStream(stream);
+    videoElement.srcObject = null;
+  }
+
+  if (!matchOutcome) {
+    matchOutcome = { outcome: 'no_face_timeout' };
+  }
+
+  if (matchOutcome.outcome !== 'match') {
+    return matchOutcome;
+  }
+
+  // ⬅️ issueVerificationProof بتتنادى هنا بس — بعد نجاح المطابقة
+  // فعليًا Client-side، مش قبلها خالص.
+  let proofResp;
+  try {
+    proofResp = await requestVerificationProof(operationType);
+  } catch (err) {
+    return { outcome: 'technical_failure' };
+  }
+  if (!proofResp || proofResp.status !== 'ok' || !proofResp.proofToken) {
+    return { outcome: 'technical_failure' };
+  }
+  return { outcome: 'match', proofToken: proofResp.proofToken };
+}
 
 try{
   const saved = localStorage.getItem('ghs_emp_code');
@@ -832,54 +1044,9 @@ function markLocalAttempt(type){
   try{ localStorage.setItem('ghs_last_' + type, String(Date.now())); }catch(e){}
 }
 
-// بيصغّر الصورة قبل ما نبعتها، عشان الرفع يبقى أسرع بكتير — الصورة
-// أصلاً بتتعرض بحجم 100×100 بس جوه الشيت، فمفيش داعي نبعت صورة
-// الكاميرا الأصلية اللي ممكن تكون كذا ميجابايت. بنرجعها لأقصى بُعد
-// 500 بكسل وجودة JPEG معقولة (0.7)، وده بيقلل الحجم بشكل كبير جدًا
-// من غير ما يأثر على وضوحها في المكان الصغير اللي هتظهر فيه.
-function resizeImageToBase64(file, maxDimension, quality){
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      let { width, height } = img;
-      if(width > maxDimension || height > maxDimension){
-        if(width >= height){
-          height = Math.round(height * (maxDimension / width));
-          width = maxDimension;
-        }else{
-          width = Math.round(width * (maxDimension / height));
-          height = maxDimension;
-        }
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', quality));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error('تعذّر تحميل الصورة للتصغير'));
-    };
-    img.src = objectUrl;
-  });
-}
-
-function fileToBase64(file){
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 // بيبعت طلب واحد فعليًا للسيرفر، ويرجع النتيجة أو يرمي استثناء لو
 // فشل الاتصال بالكامل (مشكلة شبكة).
-async function attemptCheckInOut_(type, lat, lng, photoBase64){
+async function attemptCheckInOut_(type, lat, lng, proofToken){
   const resp = await fetch(CONFIG.SCRIPT_URL, {
     method: 'POST',
     headers: {'Content-Type': 'text/plain;charset=utf-8'},
@@ -892,7 +1059,10 @@ async function attemptCheckInOut_(type, lat, lng, photoBase64){
       // السيرفر بيحدد الموظف من التوكن نفسه، ويحسب المسافة ويحسم
       // القرار بنفسه من الإحداثيات الخام بس.
       lat: lat, lng: lng,
-      photo: photoBase64 || "",
+      // ⬅️ proofToken بس بيتبعت — صفر صورة/Selfie خالص. لو التحقق
+      // اتخطّى (NOT_AVAILABLE/TECHNICAL_FAILURE)، بتتبعت فاضية،
+      // والباك إند بيتعامل معاها زي ما هو مُتفَق عليه بالفعل.
+      proofToken: proofToken || "",
     }),
   });
   let result = null;
@@ -910,7 +1080,7 @@ function isCongestionError_(result){
   return msg.includes('lock') || msg.includes('timeout') || msg.includes('busy');
 }
 
-async function sendCheckInOut(type, code, lat, lng, distance, locationName, photoBase64){
+async function sendCheckInOut(type, code, lat, lng, distance, locationName, proofToken){
   if(!CONFIG.SCRIPT_URL){
     showStatus('warn', T('err_configTitle'), T('err_configBody'));
     return;
@@ -918,7 +1088,7 @@ async function sendCheckInOut(type, code, lat, lng, distance, locationName, phot
   let result = null;
   let networkFailed = false;
   try{
-    result = await attemptCheckInOut_(type, lat, lng, photoBase64);
+    result = await attemptCheckInOut_(type, lat, lng, proofToken);
   }catch(err){
     networkFailed = true;
   }
@@ -931,7 +1101,7 @@ async function sendCheckInOut(type, code, lat, lng, distance, locationName, phot
     await new Promise(r => setTimeout(r, 2000));
     networkFailed = false;
     try{
-      result = await attemptCheckInOut_(type, lat, lng, photoBase64);
+      result = await attemptCheckInOut_(type, lat, lng, proofToken);
     }catch(err){
       networkFailed = true;
     }
@@ -959,35 +1129,53 @@ async function sendCheckInOut(type, code, lat, lng, distance, locationName, phot
   }
 }
 
-cameraInput.addEventListener('change', async () => {
-  if(!pendingCheckIn || !activeBtn) return;
-  const btn = activeBtn;
-  const file = cameraInput.files && cameraInput.files[0];
-  if(!file){
-    setChecking(btn, false, btn.dataset.type === 'checkin' ? T('checkinBtnLabel') : T('checkoutBtnLabel'));
-    showStatus('warn', T('err_needPhotoTitle'), T('err_needPhotoBody'));
-    pendingCheckIn = null; activeBtn = null;
-    return;
+// ⬅️ الدالة اللي بتوصل GPS بالـFace Verification بالـsubmission
+// النهائي. بتتعامل مع كل حالات الـFallback المتفَق عليها، وبترفض
+// التسجيل تمامًا في حالتي camera_denied/no_match/no_face_timeout/
+// multiple_faces (صفر Bypass لموظف عنده Reference Photo بس فشلت
+// المطابقة أو رفض الكاميرا).
+async function runFaceVerificationAndSubmit_(pending, btn, label){
+  const { type, code, lat, lng, distance, locationName } = pending;
+  let verification;
+  try {
+    verification = await runFaceVerification(type);
+  } catch (err) {
+    verification = { outcome: 'technical_failure' };
   }
-  btn.querySelector('.btnLabel').textContent = T('checkinBtnLabelUploading');
-  try{
-    let base64;
-    try{
-      base64 = await resizeImageToBase64(file, 500, 0.7);
-    }catch(resizeErr){
-      // لو التصغير فشل لأي سبب، نبعت الصورة الأصلية بدل ما نمنع التسجيل خالص
-      base64 = await fileToBase64(file);
-    }
-    const { type, code, lat, lng, distance, locationName } = pendingCheckIn;
-    await sendCheckInOut(type, code, lat, lng, distance, locationName, base64);
-  }catch(err){
-    showStatus('warn', T('err_photoProcessTitle'), T('err_photoProcessBody'));
-  }finally{
-    setChecking(btn, false, btn.dataset.type === 'checkin' ? T('checkinBtnLabel') : T('checkoutBtnLabel'));
-    pendingCheckIn = null; activeBtn = null;
-    cameraInput.value = '';
+
+  switch (verification.outcome) {
+    case 'not_available':
+    case 'technical_failure':
+      // ⬅️ يسمح بالتسجيل بدون Proof — الباك إند بيسجل Metadata
+      // مناسبة بنفسه، زي ما هو مُتفَق عليه.
+      await sendCheckInOut(type, code, lat, lng, distance, locationName, null);
+      setChecking(btn, false, label);
+      pendingCheckIn = null; activeBtn = null;
+      return;
+
+    case 'match':
+      await sendCheckInOut(type, code, lat, lng, distance, locationName, verification.proofToken);
+      setChecking(btn, false, label);
+      pendingCheckIn = null; activeBtn = null;
+      return;
+
+    case 'camera_denied':
+      setChecking(btn, false, label);
+      showStatus('warn', T('err_needPhotoTitle'), T('err_needPhotoBody'));
+      pendingCheckIn = null; activeBtn = null;
+      return;
+
+    case 'no_match':
+    case 'no_face_timeout':
+    case 'multiple_faces':
+    default:
+      // ⬅️ رفض صريح — صفر issueVerificationProof، صفر تسجيل حضور.
+      setChecking(btn, false, label);
+      showStatus('warn', T('err_photoProcessTitle'), T('err_photoProcessBody'));
+      pendingCheckIn = null; activeBtn = null;
+      return;
   }
-});
+}
 
 function handleClick(btn){
   const type = btn.dataset.type; // 'checkin' or 'checkout'
@@ -1036,11 +1224,13 @@ function handleClick(btn){
           distance: best.distance, locationName: best.location.name,
         };
         activeBtn = btn;
-        // نفتح الكاميرا فورًا قبل أي تحديث تاني للشاشة، عشان أسرع استجابة ممكنة
-        cameraInput.click();
         statusBox.className = 'status show neutral';
         statusBox.innerHTML = '<b>' + T('inRangeTitle') + '</b>' + T('inRangeBody');
         btn.querySelector('.btnLabel').textContent = T('checkinBtnLabelCamera');
+        // ⬅️ الفلو الجديد — Face Verification بدل فتح الكاميرا القديمة
+        // مباشرة. صفر إرسال/تخزين لأي Selfie، proofToken بس هو اللي
+        // بيتبعت مع طلب التسجيل.
+        runFaceVerificationAndSubmit_(pendingCheckIn, btn, label);
       }else{
         setChecking(btn, false, label);
         const accNote = accuracy > 50 ? T('accuracyNote') : '';
