@@ -857,25 +857,107 @@ async function requestVerificationProof(operationType){
 // تنجح أو ينتهي الـTimeout. بترجع الـDescriptor في الذاكرة بس، مع
 // دالة cleanup لازم تتنادى فورًا بعد الاستخدام (نجح أو فشل) عشان
 // توقف الـStream وتفرّغ كل المتغيرات.
-function openLiveCameraForVerification(videoElement){
-  return new Promise((resolve, reject) => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      reject(new Error('camera_not_supported'));
-      return;
+async function openLiveCameraForVerification(videoElement){
+  // مهم للموبايل خصوصًا iPhone/iPad: لازم الـvideo يكون configured كـinline/autoplay
+  // ومربوط بالـDOM قبل محاولة التشغيل، لأن استدعاء play() على عنصر detached
+  // ممكن يفشل بعد الرجوع من GPS.
+  if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    throw new Error('camera_insecure_context');
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error('camera_not_supported');
+  }
+
+  videoElement.autoplay = true;
+  videoElement.playsInline = true;
+  videoElement.muted = true;
+  videoElement.setAttribute('autoplay', '');
+  videoElement.setAttribute('playsinline', '');
+  videoElement.setAttribute('webkit-playsinline', '');
+
+  // نخليه موجود في الصفحة أثناء جلسة الكاميرا. ده بيحل مشكلة بعض المتصفحات
+  // اللي لا تشغّل MediaStream بشكل موثوق على عنصر غير موجود في DOM.
+  videoElement.style.position = 'fixed';
+  videoElement.style.width = '1px';
+  videoElement.style.height = '1px';
+  videoElement.style.opacity = '0.01';
+  videoElement.style.pointerEvents = 'none';
+  videoElement.style.left = '-10px';
+  videoElement.style.top = '-10px';
+  document.body.appendChild(videoElement);
+
+  let stream = null;
+  try {
+    // نبدأ بالكاميرا الأمامية، ولو الجهاز/المتصفح رفض constraint معين
+    // نجرب طلب فيديو عام بدل ما نعتبر إن الكاميرا غير متاحة.
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'user' } },
+        audio: false
+      });
+    } catch (firstErr) {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false
+      });
     }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
-      .then(stream => {
-        videoElement.srcObject = stream;
-        videoElement.play();
-        resolve(stream);
-      })
-      .catch(() => reject(new Error('camera_permission_denied')));
-  });
+
+    videoElement.srcObject = stream;
+
+    // ننتظر metadata قبل detection عشان videoWidth/videoHeight يكونوا جاهزين.
+    if (videoElement.readyState < HTMLMediaElement.HAVE_METADATA) {
+      await new Promise((resolve, reject) => {
+        const onLoaded = () => { cleanup(); resolve(); };
+        const onError = () => { cleanup(); reject(new Error('camera_video_error')); };
+        const timer = setTimeout(() => { cleanup(); reject(new Error('camera_video_timeout')); }, 8000);
+        function cleanup(){
+          clearTimeout(timer);
+          videoElement.removeEventListener('loadedmetadata', onLoaded);
+          videoElement.removeEventListener('error', onError);
+        }
+        videoElement.addEventListener('loadedmetadata', onLoaded, { once: true });
+        videoElement.addEventListener('error', onError, { once: true });
+      });
+    }
+
+    try {
+      await videoElement.play();
+    } catch (playErr) {
+      // محاولة ثانية بعد تثبيت autoplay/inline properties.
+      videoElement.muted = true;
+      videoElement.autoplay = true;
+      await videoElement.play();
+    }
+
+    if (!videoElement.videoWidth || !videoElement.videoHeight) {
+      throw new Error('camera_no_video_frames');
+    }
+
+    return stream;
+  } catch (err) {
+    if (stream) stopCameraStream(stream);
+    videoElement.srcObject = null;
+    if (videoElement.parentNode) videoElement.parentNode.removeChild(videoElement);
+    if (err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+      throw new Error('camera_permission_denied');
+    }
+    throw err && err.message ? err : new Error('camera_permission_denied');
+  }
 }
 
-function stopCameraStream(stream){
-  if (!stream) return;
-  stream.getTracks().forEach(track => track.stop());
+function stopCameraStream(stream, videoElement){
+  if (stream) {
+    stream.getTracks().forEach(track => {
+      try { track.stop(); } catch(e) {}
+    });
+  }
+  if (videoElement) {
+    try {
+      videoElement.pause();
+      videoElement.srcObject = null;
+    } catch(e) {}
+    if (videoElement.parentNode) videoElement.parentNode.removeChild(videoElement);
+  }
 }
 
 // ⬅️ الدالة المحورية — الـFlow الكامل: قراءة Reference Photo →
@@ -961,8 +1043,7 @@ async function runFaceVerification(operationType){
   } finally {
     // ⬅️ التخلص الفوري من الـStream والـFrame — قبل حتى ما نكمل أي
     // خطوة تانية، بغض النظر عن النتيجة.
-    stopCameraStream(stream);
-    videoElement.srcObject = null;
+    stopCameraStream(stream, videoElement);
   }
 
   if (!matchOutcome) {
