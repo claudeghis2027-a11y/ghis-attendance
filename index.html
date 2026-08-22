@@ -701,7 +701,7 @@ loginBtn.addEventListener('click', doLogin);
 loginPass.addEventListener('keydown', (e) => { if(e.key === 'Enter') doLogin(); });
 
 changePassLink.addEventListener('click', () => {
-  const isHidden = changePassBox.style.display === 'none' || !changePassBox.style.display:block;
+  const isHidden = changePassBox.style.display === 'none';
   changePassBox.style.display = isHidden ? '' : 'none';
   if(isHidden){
     cpCode.value = loginUser.value.trim();
@@ -785,7 +785,7 @@ let activeBtn = null;
 // المكتبة (face-api.js) والـModels لازم تكونوا مُستضافين محليًا
 // على نفس استضافة الصفحة دي، في المسارات المحددة تحت.
 // ============================================================
-const FACE_API_SCRIPT_PATH = './face-api/face-api.min.js';
+const FACE_API_SCRIPT_PATH = './face-api.min.js';
 const FACE_API_MODELS_PATH = './models';
 // ⚠️ Threshold مبدئي غير نهائي — يحتاج معايرة حقيقية على بيانات
 // فعلية قبل الاعتماد النهائي عليه في الإنتاج.
