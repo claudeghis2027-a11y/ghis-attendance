@@ -1118,6 +1118,12 @@ function stopCameraStream(stream, videoElement){
 // بترجع { outcome, proofToken? } — outcome من: 'not_available',
 // 'technical_failure', 'match', 'no_match', 'camera_denied',
 // 'no_face_timeout', 'multiple_faces'.
+// ⚠️ Diagnostic مؤقت — بيلتقط الرد الخام من fetchReferencePhoto.
+// 4 حقول بس بالاسم الصريح (whitelist): status · message · reason ·
+// hasReferencePhoto. ⛔ صفر token · صفر Base64 · صفر بيانات شخصية.
+// أي حقل تاني في الرد مستحيل يتسرب لأن الالتقاط بالاسم مش نسخ كائن.
+let lastRefPhotoDiag_ = null;
+
 async function runFaceVerification(operationType, btn){
   setPhase_(btn, 'phase_loadingRef'); // ⬅️ عرض فقط
   // ⬅️ Perf — المرحلتان مستقلتان تمامًا عن بعض (الصورة المرجعية من
@@ -1130,7 +1136,15 @@ async function runFaceVerification(operationType, btn){
       ensureFaceApiModelsLoaded(),
     ]);
     refPhotoResp = photoResult;
+    lastRefPhotoDiag_ = {
+      status: refPhotoResp && refPhotoResp.status,
+      message: refPhotoResp && refPhotoResp.message,
+      reason: refPhotoResp && refPhotoResp.reason,
+      hasReferencePhoto: refPhotoResp && refPhotoResp.hasReferencePhoto,
+    };
   } catch (err) {
+    lastRefPhotoDiag_ = { status: '(exception)', message: String((err && err.message) || err),
+                          reason: null, hasReferencePhoto: null };
     return { outcome: 'technical_failure' };
   }
   if (!refPhotoResp || refPhotoResp.status !== 'ok') {
@@ -1704,6 +1718,16 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
         statusBox.className = 'status show warn';
         statusBox.innerHTML = '<b>تشخيص الصورة المرجعية</b>reason: '
           + String(verification.reason) + ' — outcome: ' + verification.outcome;
+      }
+      // ⚠️ Diagnostic — الرد الخام، 4 حقول بس. عرض بحت.
+      if (lastRefPhotoDiag_) {
+        statusBox.className = 'status show warn';
+        statusBox.innerHTML = '<b>تشخيص الرد الخام</b>'
+          + 'status: ' + String(lastRefPhotoDiag_.status)
+          + '<br>message: ' + String(lastRefPhotoDiag_.message)
+          + '<br>reason: ' + String(lastRefPhotoDiag_.reason)
+          + '<br>hasReferencePhoto: ' + String(lastRefPhotoDiag_.hasReferencePhoto)
+          + '<br>outcome: ' + verification.outcome;
       }
       return;
 
