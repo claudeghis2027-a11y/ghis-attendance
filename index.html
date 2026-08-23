@@ -758,15 +758,16 @@ async function doLogin(){
     // أصلاً بـfaceApiModelsLoaded/faceApiLoadPromise، فالنداء وقت
     // البصمة بيرجع فورًا لو خلصت أو بينتظر نفس الـpromise.
     ensureFaceApiModelsLoaded().catch(() => {});
-    // ⛔ mustChangePassword محسوبة سيرفر-سايد. التنبيه ده للعرض بس —
-    // المنع الفعلي في enforceEmployeeGate_ على كل عملية سيرفر-سايد،
-    // فحتى لو حد تخطى الواجهة، الـAPI هيرفض بـmust_change_password.
-    if (result.mustChangePassword) {
-      statusBox.className = 'status show warn';
-      statusBox.innerHTML = '<b>لازم تغيّر كلمة المرور الأول</b>'
-        + 'مش هتقدر تسجل حضور أو تشوف بياناتك قبل ما تغيّر كلمة المرور الافتراضية.';
-      try { changePassLink.click(); } catch(e) {}
-    }
+    // ⛔ الحالة كلها محسوبة سيرفر-سايد — الواجهة بتوجّه بس.
+    empLoginState_ = {
+      mustChangePassword: !!result.mustChangePassword,
+      hasActivePhoto: !!result.hasActivePhoto,
+      photoRejected: !!result.photoRejected,
+      canUploadPhoto: !!result.canUploadPhoto,
+      faceReview: String(result.faceReview || ''),
+    };
+    gateProfileTab_();          // ⛔ التبويب مخفي لحد ما GPS يأكد النطاق
+    proceedAfterLogin_();
     const name = result.name || "";
     if(name){
       welcomeName.textContent = T('welcomeName')(name, user);
@@ -1273,7 +1274,9 @@ function switchEmpTab(name){
 async function empSelf_(op, payload){
   const resp = await fetch(CONFIG.SCRIPT_URL, {
     method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify({ action:'employeeSelf', op:op, token: currentSessionToken || '', payload: payload || null }),
+    body: JSON.stringify({ action:'employeeSelf', op:op, token: currentSessionToken || '',
+      lat: empLastCoords_ ? empLastCoords_.lat : null, lng: empLastCoords_ ? empLastCoords_.lng : null,
+      payload: payload || null }),
   });
   return await resp.json();
 }
@@ -1390,6 +1393,126 @@ async function loadEmpReport_(){
       + '</div>';
     empSetWatermark_();
   } catch (err) { area.innerHTML = '<div class="empNote warn">تعذّر الاتصال.</div>'; }
+}
+
+// ============================================================
+// ⚠️ Forced Password Change + Reference Photo Step + Location Gate
+// ⛔ كل المنع الفعلي سيرفر-سايد. الواجهة عرض وتوجيه بس.
+// ============================================================
+let empLoginState_ = { mustChangePassword:false, hasActivePhoto:false,
+                       photoRejected:false, canUploadPhoto:false, faceReview:'' };
+
+async function attApi_(payload){
+  const resp = await fetch(CONFIG.SCRIPT_URL, {
+    method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(Object.assign({ token: currentSessionToken || '' }, payload)),
+  });
+  return await resp.json();
+}
+
+function showForcedPasswordModal_(){
+  document.getElementById('forcePwOverlay').style.display = 'flex';
+}
+
+async function submitForcedPassword_(){
+  const nw = document.getElementById('fpNew').value;
+  const cf = document.getElementById('fpConfirm').value;
+  const err = document.getElementById('fpError');
+  const btn = document.getElementById('fpBtn');
+  err.style.display = 'none';
+  if (nw.length < 8) { err.textContent = 'كلمة المرور لازم تكون 8 حروف على الأقل.'; err.style.display=''; return; }
+  if (nw !== cf)     { err.textContent = 'التأكيد مش مطابق.'; err.style.display=''; return; }
+  btn.disabled = true;
+  try {
+    const r = await attApi_({ action:'forcedChangePassword', newPass: nw });
+    if (r.status !== 'ok') {
+      const map = { weak_password:'كلمة المرور ضعيفة.', same_as_default:'مينفعش تستخدم كلمة المرور الافتراضية.',
+                    not_required:'كلمة المرور متغيّرة بالفعل.' };
+      err.textContent = map[r.message] || (r.userMessage || 'تعذّر التغيير.');
+      err.style.display=''; btn.disabled=false; return;
+    }
+    // ⛔ صفر logout — نفس currentSessionToken مستمر
+    empLoginState_.mustChangePassword = false;
+    document.getElementById('forcePwOverlay').style.display = 'none';
+    proceedAfterLogin_();
+  } catch (e) { err.textContent='تعذّر الاتصال.'; err.style.display=''; btn.disabled=false; }
+}
+
+function openPhotoStep_(mode){
+  // ⛔ فرصة واحدة — مفيش وضع 'rejected' ولا زرار "مش دلوقتي".
+  const ov = document.getElementById('photoStepOverlay');
+  const note = document.getElementById('photoStepNote');
+  note.textContent = 'دي فرصة واحدة فقط لرفع صورتك — مش هتقدر تغيّرها بعد كده. الصورة هتتراجع من الإدارة قبل ما تشتغل.';
+  note.style.display = '';
+  document.getElementById('photoStepSkip').style.display = 'none';
+  ov.style.display = 'flex';
+}
+function closePhotoStep_(){ document.getElementById('photoStepOverlay').style.display='none'; }
+
+async function submitEmployeePhoto_(){
+  const f = document.getElementById('photoStepFile').files[0];
+  const err = document.getElementById('photoStepError');
+  const btn = document.getElementById('photoStepBtn');
+  err.style.display='none';
+  if (!f) { err.textContent='اختار صورة الأول.'; err.style.display=''; return; }
+  btn.disabled = true;
+  try {
+    const b64 = await new Promise((res,rej)=>{ const r=new FileReader();
+      r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
+    const r = await attApi_({ action:'employeePhotoUpload', photoBase64: b64 });
+    if (r.status !== 'ok') { err.textContent = r.userMessage || 'تعذّر الرفع.'; err.style.display=''; btn.disabled=false; return; }
+    closePhotoStep_();
+    empLoginState_.canUploadPhoto = false;   // ⛔ استُهلكت
+    statusBox.className = 'status show neutral';
+    statusBox.innerHTML = r.hadActive
+      ? '<b>تم إرسال الصورة للمراجعة</b>صورتك الحالية لسه شغالة وتقدر تسجّل عادي.'
+      : '<b>تم إرسال الصورة للمراجعة</b>مش هتقدر تسجّل حضور لحد ما الإدارة تعتمدها.';
+    btn.disabled=false;
+  } catch (e) { err.textContent='تعذّر الاتصال.'; err.style.display=''; btn.disabled=false; }
+}
+
+// بيتنادى بعد Login وبعد تغيير الباسورد الإجباري
+function proceedAfterLogin_(){
+  if (empLoginState_.mustChangePassword) { showForcedPasswordModal_(); return; }
+  // ⛔ فرصة رفع واحدة فقط. لو استُهلكت، مفيش أي زرار رفع — حتى بعد
+  // الرفض. المنع الحقيقي سيرفر-سايد (photo_upload_already_used).
+  if (empLoginState_.canUploadPhoto) { openPhotoStep_('initial'); return; }
+  if (!empLoginState_.hasActivePhoto) {
+    statusBox.className = 'status show warn';
+    statusBox.innerHTML = '<b>' + (empLoginState_.photoRejected
+        ? 'تم رفض صورتك الشخصية' : 'صورتك قيد المراجعة')
+      + '</b>مش هتقدر تسجّل حضور لحد ما الإدارة تعتمد صورة مرجعية ليك. برجاء مراجعة الموارد البشرية.';
+  }
+}
+
+// ⛔ Location Gate للتبويب — نفس GPS الموجود بالحرف، صفر نظام جديد
+let empLastCoords_ = null;
+function getProfileCoords_(){
+  return new Promise(resolve => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      ()  => resolve(null),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+    );
+  });
+}
+
+async function gateProfileTab_(){
+  const tab = document.getElementById('tabProfile');
+  if (tab) tab.style.display = 'none';          // ⛔ مخفي افتراضيًا
+  const c = await getProfileCoords_();
+  if (!c) return;
+  const near = findNearestLocation_(c.lat, c.lng);   // ⬅️ الدالة الموجودة
+  if (!near || near.distance > near.location.radius) return;
+  empLastCoords_ = c;
+  if (tab) tab.style.display = '';
+}
+
+// ⚠️ تبليغ نتيجة المطابقة — رادع لا مانع (المطابقة في المتصفح)
+function reportFaceOutcome_(outcome, distance){
+  attApi_({ action:'reportFaceOutcome', outcome: outcome,
+            distance: (distance === 0 || distance) ? distance : null }).catch(()=>{});
 }
 
 function setPhase_(btn, key){
@@ -1523,6 +1646,7 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
   switch (verification.outcome) {
     case 'not_available':
     case 'technical_failure':
+      reportFaceOutcome_(verification.outcome, null);
       // ⬅️ يسمح بالتسجيل بدون Proof — الباك إند بيسجل Metadata
       // مناسبة بنفسه، زي ما هو مُتفَق عليه.
       setPhase_(btn, 'phase_recording'); // ⬅️ عرض فقط
@@ -1532,6 +1656,7 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
       return;
 
     case 'match':
+      reportFaceOutcome_('match', verification.distance);
       setPhase_(btn, 'phase_recording'); // ⬅️ عرض فقط
       await sendCheckInOut(type, code, lat, lng, distance, locationName, verification.proofToken);
       setChecking(btn, false, label);
@@ -1539,6 +1664,7 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
       return;
 
     case 'camera_denied':
+      reportFaceOutcome_('camera_denied', null);
       setChecking(btn, false, label);
       showStatus('warn', T('err_needPhotoTitle'), T('err_needPhotoBody'));
       pendingCheckIn = null; activeBtn = null;
@@ -1548,6 +1674,7 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
     case 'no_face_timeout':
     case 'multiple_faces':
     default:
+      reportFaceOutcome_(verification.outcome, verification.distance);
       // ⬅️ رفض صريح — صفر issueVerificationProof، صفر تسجيل حضور.
       setChecking(btn, false, label);
       showStatus('warn', T('err_photoProcessTitle'), T('err_photoProcessBody'));
@@ -1630,7 +1757,42 @@ function handleClick(btn){
 
 checkinBtn.addEventListener('click', () => handleClick(checkinBtn));
 checkoutBtn.addEventListener('click', () => handleClick(checkoutBtn));
+
+// ⛔ ردع فقط — مش منع Screenshot. إخفاء المحتوى الحساس لما الصفحة
+// تفقد التركيز (بيلتقط بعض حالات التسجيل وتبديل التطبيقات).
+document.addEventListener('visibilitychange', () => {
+  const el = document.getElementById('empViewProfile');
+  if (el) el.style.filter = document.hidden ? 'blur(18px)' : '';
+});
 </script>
 
+<!-- ⬅️ Modal إجباري لتغيير كلمة المرور. المنع الفعلي سيرفر-سايد
+     في enforceEmployeeGate_ — ده عرض بس. -->
+<div id="forcePwOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:20000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;padding:20px;max-width:380px;width:100%">
+    <h2 style="margin:0 0 6px;font-size:18px">لازم تغيّر كلمة المرور</h2>
+    <p class="sub" style="margin:0 0 14px">مش هتقدر تستخدم النظام قبل ما تغيّر كلمة المرور الافتراضية.</p>
+    <div class="field"><label for="fpNew">كلمة المرور الجديدة</label>
+      <input type="password" id="fpNew" autocomplete="new-password"></div>
+    <div class="field"><label for="fpConfirm">تأكيد كلمة المرور</label>
+      <input type="password" id="fpConfirm" autocomplete="new-password"></div>
+    <div id="fpError" style="display:none;color:#b00020;font-size:13px;margin-bottom:8px"></div>
+    <button id="fpBtn" onclick="submitForcedPassword_()">تغيير كلمة المرور</button>
+  </div>
+</div>
+
+<!-- ⬅️ خطوة الصورة المرجعية الأولى -->
+<div id="photoStepOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:19000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;padding:20px;max-width:380px;width:100%">
+    <h2 id="photoStepTitle" style="margin:0 0 6px;font-size:18px">محتاجين صورتك الشخصية</h2>
+    <p class="sub" id="photoStepSub" style="margin:0 0 14px">الصورة دي هي اللي هيتقارن بيها وشك وقت تسجيل الحضور.</p>
+    <div id="photoStepNote" style="display:none;font-size:13px;line-height:1.7;padding:10px;border-radius:8px;background:#fff6e5;border-right:3px solid #e0a500;color:#7a5c00;margin-bottom:10px"></div>
+    <div class="field"><input type="file" id="photoStepFile" accept="image/*" capture="user"></div>
+    <img id="photoStepPreview" style="display:none;width:120px;height:120px;object-fit:cover;border-radius:10px;margin-bottom:10px">
+    <div id="photoStepError" style="display:none;color:#b00020;font-size:13px;margin-bottom:8px"></div>
+    <button id="photoStepBtn" onclick="submitEmployeePhoto_()">رفع الصورة</button>
+    <button class="secondary" id="photoStepSkip" style="display:none;margin-top:8px" onclick="closePhotoStep_()">مش دلوقتي</button>
+  </div>
+</div>
 </body>
 </html>
