@@ -860,6 +860,35 @@ async function requestVerificationProof(operationType){
 // تنجح أو ينتهي الـTimeout. بترجع الـDescriptor في الذاكرة بس، مع
 // دالة cleanup لازم تتنادى فورًا بعد الاستخدام (نجح أو فشل) عشان
 // توقف الـStream وتفرّغ كل المتغيرات.
+// ⬅️ طبقة التعتيم + الرسالة الإرشادية للـLive Preview. عناصر عرض
+// بحتة (pointerEvents:none)، صفر علاقة بالـstream أو الـdetection أو
+// أي منطق تحقق. بتتشال من stopCameraStream — نقطة تنظيف واحدة
+// مضمونة في كل مسارات الخروج.
+function showCameraOverlay_(){
+  if (document.getElementById('camPreviewOverlay')) return;
+  const ov = document.createElement('div');
+  ov.id = 'camPreviewOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.72);' +
+    'z-index:9999;pointer-events:none;';
+  const hint = document.createElement('div');
+  hint.id = 'camPreviewHint';
+  hint.style.cssText = 'position:fixed;left:50%;' +
+    'top:calc(50% + min(74vw,300px)/2 + 22px);transform:translateX(-50%);' +
+    'z-index:10001;pointer-events:none;color:#fff;font-size:16px;' +
+    'font-weight:600;text-align:center;white-space:nowrap;' +
+    'text-shadow:0 2px 8px rgba(0,0,0,.8);';
+  hint.textContent = 'وجّه وجهك للكاميرا';
+  document.body.appendChild(ov);
+  document.body.appendChild(hint);
+}
+
+function hideCameraOverlay_(){
+  ['camPreviewOverlay','camPreviewHint'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  });
+}
+
 async function openLiveCameraForVerification(videoElement){
   // مهم للموبايل خصوصًا iPhone/iPad: لازم الـvideo يكون configured كـinline/autoplay
   // ومربوط بالـDOM قبل محاولة التشغيل، لأن استدعاء play() على عنصر detached
@@ -880,13 +909,24 @@ async function openLiveCameraForVerification(videoElement){
 
   // نخليه موجود في الصفحة أثناء جلسة الكاميرا. ده بيحل مشكلة بعض المتصفحات
   // اللي لا تشغّل MediaStream بشكل موثوق على عنصر غير موجود في DOM.
+  // ⬅️ Live Preview مرئي — نفس الـvideoElement ونفس الـstream بالظبط،
+  // صفر getUserMedia جديد وصفر صورة إضافية. الـpreview عرض حي من
+  // الـstream بس. position:fixed محفوظة (ضرورية لتشغيل MediaStream
+  // بشكل موثوق على iOS)، وpointerEvents:none محفوظة (تمنع أي تداخل
+  // مع الأزرار). scaleX(-1) مرآة بصرية على عنصر العرض بس — الكشف
+  // بيقرا من الـvideo buffer (videoWidth/videoHeight) فمش متأثر.
   videoElement.style.position = 'fixed';
-  videoElement.style.width = '1px';
-  videoElement.style.height = '1px';
-  videoElement.style.opacity = '0.01';
   videoElement.style.pointerEvents = 'none';
-  videoElement.style.left = '-10px';
-  videoElement.style.top = '-10px';
+  videoElement.style.left = '50%';
+  videoElement.style.top = '50%';
+  videoElement.style.transform = 'translate(-50%, -50%) scaleX(-1)';
+  videoElement.style.width = 'min(74vw, 300px)';
+  videoElement.style.height = 'min(74vw, 300px)';
+  videoElement.style.borderRadius = '50%';
+  videoElement.style.objectFit = 'cover';
+  videoElement.style.zIndex = '10000';
+  videoElement.style.boxShadow = '0 0 0 4px #fff, 0 8px 40px rgba(0,0,0,.55)';
+  showCameraOverlay_();
   document.body.appendChild(videoElement);
 
   let stream = null;
@@ -938,6 +978,7 @@ async function openLiveCameraForVerification(videoElement){
 
     return stream;
   } catch (err) {
+    hideCameraOverlay_(); // ⬅️ فشل أثناء فتح الكاميرا نفسها (رفض إذن/timeout) — stopCameraStream مش بتتنادى هنا
     if (stream) stopCameraStream(stream);
     videoElement.srcObject = null;
     if (videoElement.parentNode) videoElement.parentNode.removeChild(videoElement);
@@ -949,6 +990,7 @@ async function openLiveCameraForVerification(videoElement){
 }
 
 function stopCameraStream(stream, videoElement){
+  hideCameraOverlay_(); // ⬅️ نقطة التنظيف الموحّدة — بتتنادى من finally في كل الحالات
   if (stream) {
     stream.getTracks().forEach(track => {
       try { track.stop(); } catch(e) {}
