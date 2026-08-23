@@ -1466,6 +1466,9 @@ async function submitForcedPassword_(){
     }
     // ⛔ صفر logout — نفس currentSessionToken مستمر
     empLoginState_.mustChangePassword = false;
+    // ⛔ التوكن القديم بطل (البصمة اتغيّرت). لازم نستبدله وإلا كل
+    // نداء بعده هيترفض بـinvalid_or_expired_token.
+    if (r.token) currentSessionToken = r.token;
     document.getElementById('forcePwOverlay').style.display = 'none';
     proceedAfterLogin_();
   } catch (e) { err.textContent='تعذّر الاتصال.'; err.style.display=''; btn.disabled=false; }
