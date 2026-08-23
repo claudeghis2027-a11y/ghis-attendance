@@ -1140,7 +1140,9 @@ async function runFaceVerification(operationType, btn){
     // NOT_AVAILABLE أو TECHNICAL_FAILURE من الباك إند — الاتنين
     // بيتعاملوا هنا بنفس الطريقة: تخطّي التحقق، الباك إند بيسجل
     // Metadata مناسبة بنفسه.
-    return { outcome: 'not_available' };
+    // ⚠️ Diagnostic — بنمرّر reason زي ما جه من السيرفر بلا أي
+    // تفسير. صفر تغيير في الـoutcome ولا في أي مسار.
+    return { outcome: 'not_available', reason: refPhotoResp.reason || 'UNKNOWN' };
   }
 
   // ⬅️ Reference Descriptor — بيتحسب مرة واحدة من صورة GHIS، في
@@ -1696,6 +1698,13 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
       // مناسبة بنفسه، زي ما هو مُتفَق عليه.
       setPhase_(btn, 'phase_recording'); // ⬅️ عرض فقط
       await sendCheckInOut(type, code, lat, lng, distance, locationName, null);
+      // ⚠️ Diagnostic — بعد sendCheckInOut عشان مايتمسحش (الدالة دي
+      // بتنادي showStatus/showGreeting بنفسها). عرض بحت.
+      if (verification.reason) {
+        statusBox.className = 'status show warn';
+        statusBox.innerHTML = '<b>تشخيص الصورة المرجعية</b>reason: '
+          + String(verification.reason) + ' — outcome: ' + verification.outcome;
+      }
       return;
 
     case 'match':
