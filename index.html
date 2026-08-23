@@ -1123,6 +1123,9 @@ function stopCameraStream(stream, videoElement){
 // hasReferencePhoto. ⛔ صفر token · صفر Base64 · صفر بيانات شخصية.
 // أي حقل تاني في الرد مستحيل يتسرب لأن الالتقاط بالاسم مش نسخ كائن.
 let lastRefPhotoDiag_ = null;
+// ⚠️ Diagnostic مؤقت — بيحدد أول نقطة فشل بين تحميل الصورة المرجعية
+// والكشف عليها. ⛔ صفر Base64 · صفر token · صفر بيانات شخصية.
+let lastRefStepDiag_ = null;
 
 async function runFaceVerification(operationType, btn){
   setPhase_(btn, 'phase_loadingRef'); // ⬅️ عرض فقط
@@ -1169,15 +1172,35 @@ async function runFaceVerification(operationType, btn){
   refImg.src = refPhotoResp.referencePhotoBase64;
   try {
     await refImgLoaded;
+    lastRefStepDiag_ = { step: 'IMAGE_LOAD_SUCCESS',
+                         naturalWidth: refImg.naturalWidth,
+                         naturalHeight: refImg.naturalHeight,
+                         complete: refImg.complete };
   } catch (err) {
+    lastRefStepDiag_ = { step: 'IMAGE_LOAD_ERROR',
+                         error: String((err && err.message) || err) };
     return { outcome: 'technical_failure' };
   }
-  const refDetection = await detectSingleFaceDescriptor(refImg);
+  // ⚠️ Diagnostic — الـtry/catch ده جديد. من غيره الاستثناء كان بيطلع
+  // من الدالة كلها ويتلقفه catch في runFaceVerificationAndSubmit_ اللي
+  // بيرجّع technical_failure برضه. ⇒ النتيجة النهائية متطابقة.
+  let refDetection;
+  try {
+    refDetection = await detectSingleFaceDescriptor(refImg);
+  } catch (err) {
+    lastRefStepDiag_.step = 'FACE_DETECTION_EXCEPTION';
+    lastRefStepDiag_.error = String((err && err.message) || err);
+    refImg.src = '';
+    return { outcome: 'technical_failure' };
+  }
   refImg.src = ''; // تفريغ فوري
+  lastRefStepDiag_.detectionStatus = refDetection.status;
   if (refDetection.status !== 'ok') {
+    lastRefStepDiag_.step = 'FACE_DETECTION_NOT_OK';
     // صورة مرجعية موجودة بس مفيهاش وش واضح — فشل تقني في المصدر
     return { outcome: 'technical_failure' };
   }
+  lastRefStepDiag_.step = 'FACE_DETECTION_SUCCESS';
   const referenceDescriptor = refDetection.descriptor;
 
   const videoElement = document.createElement('video');
@@ -1731,6 +1754,19 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
           + '<br>reason: ' + String(lastRefPhotoDiag_.reason)
           + '<br>hasReferencePhoto: ' + String(lastRefPhotoDiag_.hasReferencePhoto)
           + '<br>outcome: ' + verification.outcome;
+      }
+      if (lastRefStepDiag_) {
+        statusBox.className = 'status show warn';
+        statusBox.innerHTML = '<b>REF_DIAG_STEP</b>'
+          + String(lastRefStepDiag_.step)
+          + (lastRefStepDiag_.naturalWidth !== undefined
+              ? '<br>naturalWidth: ' + lastRefStepDiag_.naturalWidth
+                + '<br>naturalHeight: ' + lastRefStepDiag_.naturalHeight
+                + '<br>complete: ' + lastRefStepDiag_.complete : '')
+          + (lastRefStepDiag_.detectionStatus !== undefined
+              ? '<br>detectionStatus: ' + lastRefStepDiag_.detectionStatus : '')
+          + (lastRefStepDiag_.error !== undefined
+              ? '<br>error: ' + lastRefStepDiag_.error : '');
       }
       return;
 
