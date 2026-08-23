@@ -681,6 +681,14 @@ async function doLogin(){
     mainCard.style.display = '';
     empCodeInput.value = user;
     currentSessionToken = result.token || null;
+    // ⬅️ Perf — تحميل موديلات face-api (~12MB) في الوقت الميت بين
+    // الدخول والضغط على زرار التسجيل، بدل ما الموظف يستناها وهو
+    // واقف بيبصم. fire-and-forget: مش بننتظرها ومش بتوقف أي حاجة،
+    // ولو فشلت بتتجاهل بصمت والمسار العادي هيحاول تاني وقت البصمة.
+    // صفر تغيير في منطق التحقق — ensureFaceApiModelsLoaded محمية
+    // أصلاً بـfaceApiModelsLoaded/faceApiLoadPromise، فالنداء وقت
+    // البصمة بيرجع فورًا لو خلصت أو بينتظر نفس الـpromise.
+    ensureFaceApiModelsLoaded().catch(() => {});
     const name = result.name || "";
     if(name){
       welcomeName.textContent = T('welcomeName')(name, user);
@@ -1021,9 +1029,16 @@ function stopCameraStream(stream, videoElement){
 // 'no_face_timeout', 'multiple_faces'.
 async function runFaceVerification(operationType, btn){
   setPhase_(btn, 'phase_loadingRef'); // ⬅️ عرض فقط
+  // ⬅️ Perf — المرحلتان مستقلتان تمامًا عن بعض (الصورة المرجعية من
+  // السيرفر، والموديلات ملفات ثابتة)، فبيتنفذوا بالتوازي بدل
+  // التتابع. نفس النتائج ونفس أكواد الفشل بالحرف.
   let refPhotoResp;
   try {
-    refPhotoResp = await fetchReferencePhoto();
+    const [photoResult] = await Promise.all([
+      fetchReferencePhoto(),
+      ensureFaceApiModelsLoaded(),
+    ]);
+    refPhotoResp = photoResult;
   } catch (err) {
     return { outcome: 'technical_failure' };
   }
@@ -1035,12 +1050,6 @@ async function runFaceVerification(operationType, btn){
     // بيتعاملوا هنا بنفس الطريقة: تخطّي التحقق، الباك إند بيسجل
     // Metadata مناسبة بنفسه.
     return { outcome: 'not_available' };
-  }
-
-  try {
-    await ensureFaceApiModelsLoaded();
-  } catch (err) {
-    return { outcome: 'technical_failure' };
   }
 
   // ⬅️ Reference Descriptor — بيتحسب مرة واحدة من صورة GHIS، في
