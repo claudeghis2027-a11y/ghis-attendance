@@ -378,6 +378,10 @@ const LANG = {
     checkinBtnLabelBusy: 'بيحدد موقعك دلوقتي...',
     checkinBtnLabelCamera: 'بيفتح الكاميرا...',
     checkinBtnLabelUploading: 'بيرفع الصورة ويسجل...',
+    phase_loadingRef: 'جاري تحميل بيانات التحقق...',
+    phase_openingCamera: 'جاري تجهيز الكاميرا...',
+    phase_verifying: 'جاري التحقق من الوجه...',
+    phase_recording: 'جاري معالجة التسجيل...',
     metaDistDefault: 'المسافة: —',
     footNote: 'لو الزرار مبيشتغلش، اتأكد إن إذن الموقع (Location) والكاميرا مفعّلين للمتصفح من إعدادات الجهاز.<br>مشكلة مستمرة؟ كلم قسم شئون العاملين.',
     welcomeName: (name, code) => 'أهلاً يا ' + name + ' (كود ' + code + ') 👋',
@@ -463,6 +467,10 @@ const LANG = {
     checkinBtnLabelBusy: 'Getting your location...',
     checkinBtnLabelCamera: 'Opening camera...',
     checkinBtnLabelUploading: 'Uploading photo...',
+    phase_loadingRef: 'Loading verification data...',
+    phase_openingCamera: 'Preparing camera...',
+    phase_verifying: 'Verifying face...',
+    phase_recording: 'Processing your record...',
     metaDistDefault: 'Distance: —',
     footNote: "If the button doesn't work, make sure Location and Camera permissions are enabled for the browser in your device settings.<br>Still having trouble? Contact HR.",
     welcomeName: (name, code) => 'Hi ' + name + ' (code ' + code + ') 👋',
@@ -1011,7 +1019,8 @@ function stopCameraStream(stream, videoElement){
 // بترجع { outcome, proofToken? } — outcome من: 'not_available',
 // 'technical_failure', 'match', 'no_match', 'camera_denied',
 // 'no_face_timeout', 'multiple_faces'.
-async function runFaceVerification(operationType){
+async function runFaceVerification(operationType, btn){
+  setPhase_(btn, 'phase_loadingRef'); // ⬅️ عرض فقط
   let refPhotoResp;
   try {
     refPhotoResp = await fetchReferencePhoto();
@@ -1061,11 +1070,13 @@ async function runFaceVerification(operationType){
 
   let stream = null;
   try {
+    setPhase_(btn, 'phase_openingCamera'); // ⬅️ عرض فقط
     stream = await openLiveCameraForVerification(videoElement);
   } catch (err) {
     return { outcome: 'camera_denied' };
   }
 
+  setPhase_(btn, 'phase_verifying'); // ⬅️ عرض فقط
   const startTime = Date.now();
   let matchOutcome = null;
   try {
@@ -1146,6 +1157,16 @@ function showStatus(kind, title, body){
 function showGreeting(kind, greeting, body){
   statusBox.className = 'status show ' + kind;
   statusBox.innerHTML = '<div class="greeting">' + greeting + '</div>' + body;
+}
+
+// ⬅️ UI feedback بس — بتغيّر نص الزر لمرحلة العملية الحالية عشان
+// الموظف يعرف إيه اللي بيحصل بدل ما الزر يفضل ثابت على مرحلة واحدة.
+// صفر تأثير على أي منطق: مبتقرأش ولا بتعدّل أي حالة تحقق أو GPS أو
+// تسجيل، مبتعملش await، ومبتوقفش أي مسار. btn اختياري.
+function setPhase_(btn, key){
+  if (!btn) return;
+  const el = btn.querySelector('.btnLabel');
+  if (el) el.textContent = T(key);
 }
 
 function setChecking(btn, isChecking, label){
@@ -1265,7 +1286,7 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
   const { type, code, lat, lng, distance, locationName } = pending;
   let verification;
   try {
-    verification = await runFaceVerification(type);
+    verification = await runFaceVerification(type, btn);
   } catch (err) {
     verification = { outcome: 'technical_failure' };
   }
@@ -1275,12 +1296,14 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
     case 'technical_failure':
       // ⬅️ يسمح بالتسجيل بدون Proof — الباك إند بيسجل Metadata
       // مناسبة بنفسه، زي ما هو مُتفَق عليه.
+      setPhase_(btn, 'phase_recording'); // ⬅️ عرض فقط
       await sendCheckInOut(type, code, lat, lng, distance, locationName, null);
       setChecking(btn, false, label);
       pendingCheckIn = null; activeBtn = null;
       return;
 
     case 'match':
+      setPhase_(btn, 'phase_recording'); // ⬅️ عرض فقط
       await sendCheckInOut(type, code, lat, lng, distance, locationName, verification.proofToken);
       setChecking(btn, false, label);
       pendingCheckIn = null; activeBtn = null;
