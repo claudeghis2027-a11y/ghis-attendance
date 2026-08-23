@@ -206,6 +206,38 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
 @media (prefers-reduced-motion: reduce){
 .checking .ring, .checking .ring2, .checking .icon{ animation; }
 }
+  /* ===== Employee Self-Service ===== */
+  .empTabs{display:flex;gap:8px;margin:10px 0 14px;border-bottom:2px solid #e6ebe8}
+  .empTab{flex:1;background:none;border:none;padding:10px 6px;font-family:inherit;font-size:15px;
+    font-weight:700;color:#7b8a84;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+  .empTab.active{color:var(--green);border-bottom-color:var(--green)}
+  .empBox{background:#f7faf8;border:1px solid #e6ebe8;border-radius:12px;padding:14px;margin-bottom:12px}
+  .empBox h3{margin:0 0 10px;font-size:15px;color:var(--green)}
+  .empRow{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed #e6ebe8;font-size:14px}
+  .empRow:last-child{border-bottom:none}
+  .empRow b{color:#44544d;font-weight:600}
+  .empField{margin-bottom:10px}
+  .empField label{display:block;font-size:13px;font-weight:700;margin-bottom:4px;color:#44544d}
+  .empField input{width:100%;padding:9px;border:1px solid #cfd8d4;border-radius:8px;font-family:inherit;font-size:15px}
+  .empField input[readonly]{background:#eef2f0;color:#7b8a84}
+  .empNote{font-size:13px;line-height:1.7;padding:10px;border-radius:8px;margin-bottom:12px}
+  .empNote.warn{background:#fff6e5;border-right:3px solid #e0a500;color:#7a5c00}
+  .empNote.info{background:#e8f1fb;border-right:3px solid #2a6fb0;color:#1d4b78}
+  .empNote.lock{background:#eef2f0;border-right:3px solid #7b8a84;color:#44544d}
+  .empPhoto{width:110px;height:110px;object-fit:cover;border-radius:10px;border:2px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+  .empPeriod{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .empPeriod input{flex:1;min-width:130px;padding:8px;border:1px solid #cfd8d4;border-radius:8px;font-family:inherit}
+
+  /* ===== ردع فقط — لا يمنع Screenshot ولا يُدّعى ذلك =====
+     watermark + منع التحديد/النسخ + منع الطباعة. صفر تعطيل F12
+     أو زر الماوس (أساليب وهمية بلا قيمة أمنية). */
+  .protected{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;
+    -webkit-touch-callout:none;position:relative}
+  .protected::after{content:attr(data-wm);position:absolute;inset:0;pointer-events:none;z-index:5;
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    font-size:15px;font-weight:800;color:rgba(15,61,36,.10);transform:rotate(-24deg);
+    white-space:pre-wrap;line-height:2.6;overflow:hidden}
+  @media print{ body{display:none !important} }
 </style>
 
 </head>
@@ -299,14 +331,20 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
   <span class="datepill" id="datePill">—</span>
   <h1 id="mainTitle">تسجيل الحضور والانصراف</h1>
   <p class="sub" id="welcomeName" style="display:none; font-weight:700; color:var(--green); margin-bottom:8px;"></p>
+  <!-- ⬅️ التبويبان — نفس الصفحة، صفر رابط منفصل للموظف -->
+  <div class="empTabs" id="empTabs">
+    <button class="empTab active" id="tabAttendance" onclick="switchEmpTab('attendance')">الحضور</button>
+    <button class="empTab" id="tabProfile" onclick="switchEmpTab('profile')">بياناتي</button>
+  </div>
+  <div id="empViewProfile" class="protected" style="display:none"></div>
   <p class="sub" id="mainSub">لازم تكون جوه نطاق المدرسة عشان يتسجل حضورك أو انصرافك. دوس الزرار المناسب وانت واصل، وسيب المتصفح ياخد إذن الموقع والكاميرا.</p>
 
-  <div class="field">
+  <div class="field" id="empCodeField">
     <label for="empCode" id="labelEmpCode">كود الموظف</label>
     <input id="empCode" type="text" inputmode="numeric" placeholder="مثال: 42 أو X000001" autocomplete="off" readonly>
   </div>
 
-  <div class="actions">
+  <div class="actions" id="actionsRow">
     <button class="action-btn btn-in" id="checkinBtn" data-type="checkin">
       <span class="icon"><img src="data:image/png;base64,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" alt=""></span>
       <span class="btnLabel" id="checkinBtnLabel">تسجيل حضور</span>
@@ -323,7 +361,7 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
 
   <div class="status" id="statusBox"></div>
 
-  <div class="meta">
+  <div class="meta" id="metaRow">
     <span id="metaTime">--:--</span>
     <span id="metaDist">المسافة: —</span>
   </div>
@@ -695,7 +733,11 @@ async function doLogin(){
   try{
     const result = await verifyLogin(user, pass);
     if(result.status !== 'ok'){
-      if(result.message === 'unregistered_code'){
+      // ⛔ رسالة عامة موحّدة — السيرفر بيبعت userMessage للحالات
+      // الحساسة (غير مسجل / منتهي الخدمة) بنفس النص بالظبط.
+      if(result.userMessage){
+        showLoginError(result.userMessage);
+      }else if(result.message === 'unregistered_code'){
         showLoginError(T('err_unregistered'));
       }else{
         showLoginError(T('err_wrongPass'));
@@ -716,6 +758,15 @@ async function doLogin(){
     // أصلاً بـfaceApiModelsLoaded/faceApiLoadPromise، فالنداء وقت
     // البصمة بيرجع فورًا لو خلصت أو بينتظر نفس الـpromise.
     ensureFaceApiModelsLoaded().catch(() => {});
+    // ⛔ mustChangePassword محسوبة سيرفر-سايد. التنبيه ده للعرض بس —
+    // المنع الفعلي في enforceEmployeeGate_ على كل عملية سيرفر-سايد،
+    // فحتى لو حد تخطى الواجهة، الـAPI هيرفض بـmust_change_password.
+    if (result.mustChangePassword) {
+      statusBox.className = 'status show warn';
+      statusBox.innerHTML = '<b>لازم تغيّر كلمة المرور الأول</b>'
+        + 'مش هتقدر تسجل حضور أو تشوف بياناتك قبل ما تغيّر كلمة المرور الافتراضية.';
+      try { changePassLink.click(); } catch(e) {}
+    }
     const name = result.name || "";
     if(name){
       welcomeName.textContent = T('welcomeName')(name, user);
@@ -1199,6 +1250,148 @@ function showGreeting(kind, greeting, body){
 // الموظف يعرف إيه اللي بيحصل بدل ما الزر يفضل ثابت على مرحلة واحدة.
 // صفر تأثير على أي منطق: مبتقرأش ولا بتعدّل أي حالة تحقق أو GPS أو
 // تسجيل، مبتعملش await، ومبتوقفش أي مسار. btn اختياري.
+// ============================================================
+// ⚠️ Employee Self-Service — عرض + Enrollment مرة واحدة
+// ⛔ صفر منطق أمني هنا. كل المنع سيرفر-سايد (enforceEmployeeGate_
+//    + assertEmployeeCanWrite_). الواجهة عرض بس.
+// ============================================================
+let empProfileCache = null;
+
+const EMP_ATTENDANCE_IDS_ = ['mainSub','empCodeField','actionsRow','statusBox','metaRow','datePill'];
+
+function switchEmpTab(name){
+  document.getElementById('tabAttendance').classList.toggle('active', name === 'attendance');
+  document.getElementById('tabProfile').classList.toggle('active', name === 'profile');
+  EMP_ATTENDANCE_IDS_.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (name === 'attendance') ? '' : 'none';
+  });
+  document.getElementById('empViewProfile').style.display = name === 'profile' ? '' : 'none';
+  if (name === 'profile' && !empProfileCache) loadEmpProfile_();
+}
+
+async function empSelf_(op, payload){
+  const resp = await fetch(CONFIG.SCRIPT_URL, {
+    method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({ action:'employeeSelf', op:op, token: currentSessionToken || '', payload: payload || null }),
+  });
+  return await resp.json();
+}
+
+function empEsc_(s){ return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function empSetWatermark_(){
+  const el = document.getElementById('empViewProfile');
+  const code = empCodeInput.value.trim();
+  const name = (empProfileCache && empProfileCache.nameAr) || '';
+  const stamp = new Date().toLocaleString('ar-EG');
+  el.setAttribute('data-wm', (code + ' · ' + name + ' · ' + stamp + '\n').repeat(14));
+}
+
+async function loadEmpProfile_(){
+  const el = document.getElementById('empViewProfile');
+  el.innerHTML = '<p class="sub">جاري تحميل بياناتك...</p>';
+  try {
+    const [prof, docs] = await Promise.all([ empSelf_('profile'), empSelf_('documents') ]);
+    if (prof.status !== 'ok') { el.innerHTML = '<div class="empNote warn">' + empEsc_(prof.userMessage || 'تعذّر تحميل البيانات.') + '</div>'; return; }
+    empProfileCache = prof;
+    renderEmpProfile_(prof, docs);
+    empSetWatermark_();
+  } catch (err) {
+    el.innerHTML = '<div class="empNote warn">تعذّر الاتصال. برجاء المحاولة بعد قليل.</div>';
+  }
+}
+
+function renderEmpProfile_(prof, docs){
+  const st = prof.enrollment;
+  const canEdit = (st === 'enrollment_open' || st === 'rejected' || st === 'not_enrolled');
+  let h = '';
+
+  if (st === 'pending') h += '<div class="empNote info">طلبك قيد المراجعة حاليًا. مش هتقدر تعدّل البيانات لحد ما الإدارة تراجعه.</div>';
+  if (st === 'rejected') h += '<div class="empNote warn"><b>تم رفض الطلب.</b> يرجى مراجعة البيانات وإعادة تقديمها بعد تصحيحها.'
+    + (prof.rejectReason ? '<br>السبب: ' + empEsc_(prof.rejectReason) : '') + '</div>';
+  if (st === 'approved') h += '<div class="empNote lock">🔒 بياناتك معتمدة وللاطلاع فقط. لأي تصحيح راجع الموارد البشرية.</div>';
+
+  h += '<div class="empBox"><h3>بياناتي</h3>';
+  (prof.fields || []).forEach(f => {
+    if (f.key === 'referencePhoto') return;
+    if (canEdit && f.editable) {
+      h += '<div class="empField"><label>' + empEsc_(f.label) + (f.required ? ' *' : '') + '</label>'
+         + '<input id="empf_' + empEsc_(f.key) + '" value="' + empEsc_(f.value) + '"></div>';
+    } else {
+      h += '<div class="empRow"><b>' + empEsc_(f.label) + '</b><span>' + empEsc_(f.value || '—') + '</span></div>';
+    }
+  });
+  h += '</div>';
+
+  h += '<div class="empBox"><h3>الصورة الشخصية</h3>';
+  h += prof.hasPhoto ? '<img class="empPhoto" id="empPhotoImg" alt="الصورة">'
+                     : '<div class="empNote warn">مفيش صورة معتمدة بعد.</div>';
+  if (canEdit) h += '<div class="empField" style="margin-top:10px"><label>رفع صورة جديدة للمراجعة</label>'
+    + '<input type="file" id="empPhotoFile" accept="image/*"></div>';
+  h += '</div>';
+
+  if (docs && docs.status === 'ok') {
+    h += '<div class="empBox"><h3>المستندات</h3>';
+    (docs.completed || []).forEach(d => h += '<div class="empRow"><b>' + empEsc_(d) + '</b><span>✅ مكتمل</span></div>');
+    (docs.missing || []).forEach(d => h += '<div class="empRow"><b>' + empEsc_(d) + '</b><span>⚠️ ناقص</span></div>');
+    h += '</div>';
+  }
+
+  if (canEdit) h += '<button onclick="submitEmpProfile_()">إرسال البيانات للمراجعة</button>';
+
+  h += '<div class="empBox"><h3>ملخص الحضور</h3><div class="empPeriod">'
+     + '<input type="date" id="empFrom"><input type="date" id="empTo">'
+     + '</div><button class="secondary" onclick="loadEmpReport_()">عرض الملخص</button>'
+     + '<div id="empReportArea"></div></div>';
+
+  document.getElementById('empViewProfile').innerHTML = h;
+}
+
+async function submitEmpProfile_(){
+  const fields = {};
+  (empProfileCache.fields || []).forEach(f => {
+    if (!f.editable || f.key === 'referencePhoto') return;
+    const el = document.getElementById('empf_' + f.key);
+    if (el) fields[f.key] = el.value.trim();
+  });
+  try {
+    const r = await empSelf_('submit', { fields: fields });
+    if (r.status !== 'ok') { alert('❌ ' + (r.userMessage || r.message)); return; }
+    empProfileCache = null;
+    alert('✅ تم إرسال بياناتك للمراجعة.');
+    loadEmpProfile_();
+  } catch (err) { alert('❌ تعذّر الإرسال. حاول تاني.'); }
+}
+
+// ⛔ العرض بالأيام/الدقائق فقط — صفر مبالغ مالية (Whitelist سيرفر-سايد)
+async function loadEmpReport_(){
+  const from = document.getElementById('empFrom').value;
+  const to = document.getElementById('empTo').value;
+  const area = document.getElementById('empReportArea');
+  if (!from || !to) { area.innerHTML = '<div class="empNote warn">اختار الفترة الأول.</div>'; return; }
+  area.innerHTML = '<p class="sub">جاري التحميل...</p>';
+  try {
+    const r = await empSelf_('report', { from: from, to: to });
+    if (r.status !== 'ok') { area.innerHTML = '<div class="empNote warn">' + empEsc_(r.userMessage || 'تعذّر تحميل الملخص.') + '</div>'; return; }
+    const s = r.summary || {};
+    const row = (l, v, u) => '<div class="empRow"><b>' + l + '</b><span>' + (v == null ? '—' : v) + (u || '') + '</span></div>';
+    area.innerHTML = '<div style="margin-top:10px">'
+      + row('أيام العمل المطلوبة', s.workDaysRequired, ' يوم')
+      + row('أيام الحضور', s.presentDays, ' يوم')
+      + row('أيام الغياب', s.absentDays, ' يوم')
+      + row('مرات التأخير', s.lateCount)
+      + row('إجمالي دقائق التأخير', s.lateMinutesTotal, ' دقيقة')
+      + row('مرات الانصراف المبكر', s.earlyCount)
+      + row('إجمالي دقائق الانصراف المبكر', s.earlyMinutesTotal, ' دقيقة')
+      + row('أيام بدون بصمة انصراف', s.missingCheckoutDays, ' يوم')
+      + row('إجمالي الخصم', s.totalDeduction, ' يوم')
+      + '</div>';
+    empSetWatermark_();
+  } catch (err) { area.innerHTML = '<div class="empNote warn">تعذّر الاتصال.</div>'; }
+}
+
 function setPhase_(btn, key){
   if (!btn) return;
   const el = btn.querySelector('.btnLabel');
