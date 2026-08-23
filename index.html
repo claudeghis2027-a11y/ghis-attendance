@@ -886,6 +886,10 @@ const FACE_API_MODELS_PATH = './models';
 // فعلية قبل الاعتماد النهائي عليه في الإنتاج.
 const FACE_MATCH_DISTANCE_THRESHOLD = 0.6;
 const FACE_DETECTION_TIMEOUT_MS = 15000;
+// ⛔ فترة معاينة إجبارية قبل بدء الكشف — مش جزء من مهلة الكشف.
+const MIN_PREVIEW_MS = 2500;
+// ⛔ مهلة أمان لطلب التسجيل عشان الـUI مايفضلش عالق لو الشبكة علّقت.
+const SEND_TIMEOUT_MS = 20000;
 
 let faceApiModelsLoaded = false;
 let faceApiLoadPromise = null;
@@ -1067,6 +1071,14 @@ async function openLiveCameraForVerification(videoElement){
       await videoElement.play();
     }
 
+    // ⛔ كان فحص لحظي واحد، وده كان بيرمي camera_no_video_frames على
+    // بعض متصفحات الموبايل اللي videoWidth بتفضل عندها 0 لجزء من
+    // الثانية بعد play() رغم اكتمال الـmetadata — فالكاميرا تظهر
+    // وتختفي. دلوقتي بننتظر الأبعاد فعليًا لحد 3 ثوانٍ.
+    const dimsDeadline = Date.now() + 3000;
+    while ((!videoElement.videoWidth || !videoElement.videoHeight) && Date.now() < dimsDeadline) {
+      await new Promise(r => setTimeout(r, 100));
+    }
     if (!videoElement.videoWidth || !videoElement.videoHeight) {
       throw new Error('camera_no_video_frames');
     }
@@ -1165,6 +1177,11 @@ async function runFaceVerification(operationType, btn){
   }
 
   setPhase_(btn, 'phase_verifying'); // ⬅️ عرض فقط
+  // ⛔ فرصة حقيقية للموظف يظبط وشه قبل ما الكشف يبدأ. الـstream
+  // شغّال والـpreview ظاهر طول الفترة دي — صفر إغلاق.
+  // ⚠️ الانتظار ده قبل startTime، فالـ15 ثانية بتاعة الكشف بتبدأ
+  // بعده كاملة — FACE_DETECTION_TIMEOUT_MS مش متأثر إطلاقًا.
+  await new Promise(r => setTimeout(r, MIN_PREVIEW_MS));
   const startTime = Date.now();
   let matchOutcome = null;
   try {
@@ -1498,6 +1515,18 @@ function getProfileCoords_(){
   });
 }
 
+// ⛔ نفس منطق الحساب الموجود inline في handleClick بالحرف — بنلفّه
+// في دالة عشان gateProfileTab_ تقدر تستخدمه. صفر نظام GPS جديد،
+// صفر تغيير في haversineMeters، صفر تغيير في مسار البصمة.
+function findNearestLocation_(lat, lng){
+  let best = null;
+  for (const loc of CONFIG.LOCATIONS) {
+    const d = haversineMeters(lat, lng, loc.lat, loc.lng);
+    if (!best || d < best.distance) best = { distance: d, location: loc };
+  }
+  return best;
+}
+
 async function gateProfileTab_(){
   const tab = document.getElementById('tabProfile');
   if (tab) tab.style.display = 'none';          // ⛔ مخفي افتراضيًا
@@ -1547,27 +1576,38 @@ function markLocalAttempt(type){
 // بيبعت طلب واحد فعليًا للسيرفر، ويرجع النتيجة أو يرمي استثناء لو
 // فشل الاتصال بالكامل (مشكلة شبكة).
 async function attemptCheckInOut_(type, lat, lng, proofToken){
-  const resp = await fetch(CONFIG.SCRIPT_URL, {
-    method: 'POST',
-    headers: {'Content-Type': 'text/plain;charset=utf-8'},
-    body: JSON.stringify({
-      type: type,
-      token: currentSessionToken || "",
-      // ملحوظة: مش بنبعت وقت الموبايل خالص — السيرفر (جوجل) هو اللي
-      // بيسجل الوقت لحظة استلام الطلب، عشان محدش يقدر يتلاعب بساعته.
-      // كمان مش بنبعت مسافة ولا اسم نقطة جاهزين، ولا حتى كود الموظف —
-      // السيرفر بيحدد الموظف من التوكن نفسه، ويحسب المسافة ويحسم
-      // القرار بنفسه من الإحداثيات الخام بس.
-      lat: lat, lng: lng,
-      // ⬅️ proofToken بس بيتبعت — صفر صورة/Selfie خالص. لو التحقق
-      // اتخطّى (NOT_AVAILABLE/TECHNICAL_FAILURE)، بتتبعت فاضية،
-      // والباك إند بيتعامل معاها زي ما هو مُتفَق عليه بالفعل.
-      proofToken: proofToken || "",
-    }),
-  });
-  let result = null;
-  try{ result = await resp.json(); }catch(e){}
-  return result;
+  // ⛔ مهلة أمان بس — صفر تغيير في الـpayload أو الـAPI contract أو
+  // أي منطق. لو الشبكة علّقت، الـfetch بيتلغي ويرمي AbortError،
+  // فالـcatch الموجود في sendCheckInOut بيعامله كفشل شبكة عادي
+  // (نفس المسار الحالي بالحرف) بدل ما الـUI يفضل عالق للأبد.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), SEND_TIMEOUT_MS);
+  try {
+    const resp = await fetch(CONFIG.SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        type: type,
+        token: currentSessionToken || "",
+        // ملحوظة: مش بنبعت وقت الموبايل خالص — السيرفر (جوجل) هو اللي
+        // بيسجل الوقت لحظة استلام الطلب، عشان محدش يقدر يتلاعب بساعته.
+        // كمان مش بنبعت مسافة ولا اسم نقطة جاهزين، ولا حتى كود الموظف —
+        // السيرفر بيحدد الموظف من التوكن نفسه، ويحسب المسافة ويحسم
+        // القرار بنفسه من الإحداثيات الخام بس.
+        lat: lat, lng: lng,
+        // ⬅️ proofToken بس بيتبعت — صفر صورة/Selfie خالص. لو التحقق
+        // اتخطّى (NOT_AVAILABLE/TECHNICAL_FAILURE)، بتتبعت فاضية،
+        // والباك إند بيتعامل معاها زي ما هو مُتفَق عليه بالفعل.
+        proofToken: proofToken || "",
+      }),
+    });
+    let result = null;
+    try{ result = await resp.json(); }catch(e){}
+    return result;
+  } finally {
+    clearTimeout(timer);   // ⛔ تنظيف مضمون في كل الحالات
+  }
 }
 
 // بيحدد هل الفشل ده سببه ازدحام لحظي مؤقت (يستاهل نعيد المحاولة
@@ -1636,6 +1676,11 @@ async function sendCheckInOut(type, code, lat, lng, distance, locationName, proo
 // المطابقة أو رفض الكاميرا).
 async function runFaceVerificationAndSubmit_(pending, btn, label){
   const { type, code, lat, lng, distance, locationName } = pending;
+  // ⛔ finally مركزي — بيضمن رجوع الزرار لحالته الطبيعية وتنظيف
+  // حالة العملية في كل المسارات: Match · No Match · Timeout ·
+  // Camera Error · Network Error · حتى لو رمى استثناء غير متوقع.
+  // كل الـsetChecking المتفرقة في الفروع اتشالت واتجمعت هنا.
+  try {
   let verification;
   try {
     verification = await runFaceVerification(type, btn);
@@ -1651,23 +1696,17 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
       // مناسبة بنفسه، زي ما هو مُتفَق عليه.
       setPhase_(btn, 'phase_recording'); // ⬅️ عرض فقط
       await sendCheckInOut(type, code, lat, lng, distance, locationName, null);
-      setChecking(btn, false, label);
-      pendingCheckIn = null; activeBtn = null;
       return;
 
     case 'match':
       reportFaceOutcome_('match', verification.distance);
       setPhase_(btn, 'phase_recording'); // ⬅️ عرض فقط
       await sendCheckInOut(type, code, lat, lng, distance, locationName, verification.proofToken);
-      setChecking(btn, false, label);
-      pendingCheckIn = null; activeBtn = null;
       return;
 
     case 'camera_denied':
       reportFaceOutcome_('camera_denied', null);
-      setChecking(btn, false, label);
       showStatus('warn', T('err_needPhotoTitle'), T('err_needPhotoBody'));
-      pendingCheckIn = null; activeBtn = null;
       return;
 
     case 'no_match':
@@ -1676,10 +1715,14 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
     default:
       reportFaceOutcome_(verification.outcome, verification.distance);
       // ⬅️ رفض صريح — صفر issueVerificationProof، صفر تسجيل حضور.
-      setChecking(btn, false, label);
       showStatus('warn', T('err_photoProcessTitle'), T('err_photoProcessBody'));
-      pendingCheckIn = null; activeBtn = null;
       return;
+  }
+  } finally {
+    // ⛔ مضمون في كل الحالات — صفر احتمال يفضل الزرار عالق
+    setChecking(btn, false, label);
+    pendingCheckIn = null;
+    activeBtn = null;
   }
 }
 
