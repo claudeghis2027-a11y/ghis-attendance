@@ -982,6 +982,7 @@ async function fetchReferencePhoto(){
     body: JSON.stringify({ action: 'getReferencePhoto', token: currentSessionToken || '' }),
   });
   tMark_('PHOTO_HEADERS[' + resp.status + '|redir=' + (resp.redirected ? 1 : 0) + ']');
+tRaw_('PHOTO_FINAL_URL[' + resp.url + ']');
   const _j = await resp.json();
   tMark_('PHOTO_BODY_PARSED');
   return _j;
