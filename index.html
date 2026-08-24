@@ -925,10 +925,20 @@ async function ensureFaceApiModelsLoaded(){
 // null لو صفر وش أو أكتر من وش. صفر تخزين لأي بيانات وسيطة خارج
 // نطاق الدالة دي.
 async function detectSingleFaceDescriptor(imageOrVideoElement){
-  const detections = await window.faceapi
-    .detectAllFaces(imageOrVideoElement)
-    .withFaceLandmarks()
-    .withFaceDescriptors();
+  // ⚠️ Diagnostic — نفس الـchain بالحرف وصفر تغيير في الخيارات أو
+  // النتيجة، بس مقسومة لثلاث await عشان نقيس وقت كل مرحلة. الأوقات
+  // تراكمية بطبيعة face-api (كل Task بيشمل اللي قبله) — الفرق بين
+  // مرحلتين هو تقريب زمن الخطوة نفسها.
+  const _dt0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  const _dMarks = [];
+  const _dk = (l) => _dMarks.push(l + '=' + Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - _dt0));
+  const t1 = window.faceapi.detectAllFaces(imageOrVideoElement);
+  await t1; _dk('detectAllFaces');
+  const t2 = t1.withFaceLandmarks();
+  await t2; _dk('withFaceLandmarks');
+  const t3 = t2.withFaceDescriptors();
+  const detections = await t3; _dk('withFaceDescriptors');
+  lastDetectionChainDiag_ = _dMarks.join('|');
   if (!detections || detections.length === 0) return { status: 'no_face' };
   if (detections.length > 1) return { status: 'multiple_faces' };
   return { status: 'ok', descriptor: detections[0].descriptor };
@@ -1130,6 +1140,8 @@ let lastRefStepDiag_ = null;
 // ⛔ صفر Base64 · صفر token · صفر بيانات شخصية.
 // tMark_ بتحسب رقمًا وتضيفه لمصفوفة — صفر await، صفر تأثير على أي مسار.
 let lastTimingDiag_ = null;
+// ⚠️ Diagnostic — سلسلة detectSingleFaceDescriptor التراكمية.
+let lastDetectionChainDiag_ = null;
 function tMark_(label){
   if (!lastTimingDiag_) return;
   lastTimingDiag_.marks.push(label + '=' + Math.round(performance.now() - lastTimingDiag_.t0));
@@ -1207,6 +1219,13 @@ async function runFaceVerification(operationType, btn){
   try {
     refDetection = await detectSingleFaceDescriptor(refImg);
     tMark_('REFERENCE_DETECTION_DONE');
+    // ⚠️ Diagnostic — الأبعاد موجودة بالفعل في lastRefStepDiag_
+    // (IMAGE_LOAD_SUCCESS)، بنضيفها هنا لنفس لوحة TIMING عشان
+    // تتقارن مباشرة مع زمن الكشف.
+    if (lastRefStepDiag_ && lastRefStepDiag_.naturalWidth !== undefined) {
+      tMark_('IMG_DIMS[' + lastRefStepDiag_.naturalWidth + 'x' + lastRefStepDiag_.naturalHeight + ']');
+    }
+    if (lastDetectionChainDiag_) tMark_('CHAIN[' + lastDetectionChainDiag_ + ']');
   } catch (err) {
     lastRefStepDiag_.step = 'FACE_DETECTION_EXCEPTION';
     lastRefStepDiag_.error = String((err && err.message) || err);
