@@ -365,6 +365,10 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
     <span id="metaTime">--:--</span>
     <span id="metaDist">المسافة: —</span>
   </div>
+
+  <div style="margin-top:14px; text-align:center;">
+    <button id="signOutBtn" type="button" style="background:none; border:none; padding:8px 16px; font-family:'Tajawal', sans-serif; font-size:13.5px; font-weight:700; color:var(--ink-soft); cursor:pointer; border-radius:10px; border:1px solid var(--line);">Sign Out</button>
+  </div>
 </div>
 
 <p class="foot" id="footNote">لو الزرار مبيشتغلش، اتأكد إن إذن الموقع (Location) والكاميرا مفعّلين للمتصفح من إعدادات الجهاز.<br>مشكلة مستمرة؟ كلم قسم شئون العاملين.</p>
@@ -430,6 +434,7 @@ const LANG = {
     phase_verifying: 'جاري التحقق من الوجه...',
     phase_recording: 'جاري معالجة التسجيل...',
     metaDistDefault: 'المسافة: —',
+    signOutBtnLabel: 'تسجيل الخروج',
     footNote: 'لو الزرار مبيشتغلش، اتأكد إن إذن الموقع (Location) والكاميرا مفعّلين للمتصفح من إعدادات الجهاز.<br>مشكلة مستمرة؟ كلم قسم شئون العاملين.',
     welcomeName: (name, code) => 'أهلاً يا ' + name + ' (كود ' + code + ') 👋',
     err_needCode: 'اكتب كود الموظف الأول',
@@ -520,6 +525,7 @@ const LANG = {
     phase_verifying: 'Verifying face...',
     phase_recording: 'Processing your record...',
     metaDistDefault: 'Distance: —',
+    signOutBtnLabel: 'Sign Out',
     footNote: "If the button doesn't work, make sure Location and Camera permissions are enabled for the browser in your device settings.<br>Still having trouble? Contact HR.",
     welcomeName: (name, code) => 'Hi ' + name + ' (code ' + code + ') 👋',
     err_needCode: 'Enter your employee code first',
@@ -616,6 +622,7 @@ function applyLanguage(lang){
   setText('checkinBtnLabel', 'checkinBtnLabel');
   setText('checkoutBtnLabel', 'checkoutBtnLabel');
   setHtml('footNote', 'footNote');
+  setText('signOutBtn', 'signOutBtnLabel');
   const metaDistEl = document.getElementById('metaDist');
   if(metaDistEl && !metaDistEl.dataset.set) metaDistEl.textContent = T('metaDistDefault');
 }
@@ -2097,6 +2104,71 @@ document.addEventListener('visibilitychange', () => {
   const el = document.getElementById('empViewProfile');
   if (el) el.style.filter = document.hidden ? 'blur(18px)' : '';
 });
+
+// ============================================================
+// ⚠️ Sign Out — إنهاء الجلسة الحالية بس.
+// ⛔ صفر Attendance request · صفر تعديل لبيانات الموظف · صفر Backend
+//    جديد (مفيش action logout في Code.gs، والتوكن بينتهي سيرفر-سايد
+//    بالـTTL الموجود أصلاً).
+// ⛔ Remember Login مش بيتكسر: ghs_emp_code بيفضل محفوظ، والـCheckbox
+//    بيفضل على حالته. اللي بيتمسح هو Session Token بس — لازم، وإلا
+//    الصفحة هترجّع الموظف للحساب تلقائيًا وميبقاش فيه Sign Out أصلاً.
+// ⛔ إنهاء الجلسة بنفس آلية handleExpiredSession_ الموجودة، وإيقاف
+//    الكاميرا بنفس stopCameraStream الموجودة — صفر آلية جديدة.
+// ============================================================
+function doSignOut_(){
+  // 1) إيقاف أي MediaStream شغّال — نفس الدالة الموجودة بالحرف.
+  try {
+    document.querySelectorAll('video').forEach(v => {
+      if (v.srcObject) stopCameraStream(v.srcObject, v);
+    });
+    hideCameraOverlay_();
+  } catch (e) {}
+
+  // 2) إنهاء الجلسة
+  clearSessionToken_();
+  currentSessionToken = null;
+
+  // 3) تصفير حالة الواجهة المفتوحة
+  pendingCheckIn = null;
+  activeBtn = null;
+  empProfileCache = null;
+  empLastCoords_ = null;
+  empLoginState_ = { mustChangePassword:false, hasActivePhoto:false,
+                     photoRejected:false, canUploadPhoto:false, faceReview:'',
+                     empDataWindowOpen: null };
+  try { switchEmpTab('attendance'); } catch (e) {}
+  const profTab = document.getElementById('tabProfile');
+  if (profTab) profTab.style.display = 'none';
+  const profView = document.getElementById('empViewProfile');
+  if (profView) profView.innerHTML = '';
+  checkinBtn.classList.remove('checking');
+  checkoutBtn.classList.remove('checking');
+  checkinBtn.disabled = false;
+  checkoutBtn.disabled = false;
+  checkinBtn.querySelector('.btnLabel').textContent = T('checkinBtnLabel');
+  checkoutBtn.querySelector('.btnLabel').textContent = T('checkoutBtnLabel');
+  statusBox.className = 'status';
+  statusBox.innerHTML = '';
+  welcomeName.textContent = '';
+  welcomeName.style.display = 'none';
+  metaDist.textContent = T('metaDistDefault');
+  delete metaDist.dataset.set;
+
+  // 4) رجوع لشاشة الدخول — Login جديد إجباري
+  loginPass.value = '';
+  loginStatus.className = 'status';
+  loginStatus.innerHTML = '';
+  mainCard.style.display = 'none';
+  loginCard.style.display = '';
+  try{
+    const savedCode = localStorage.getItem('ghs_emp_code');
+    if (savedCode) loginUser.value = savedCode;
+  }catch(e){}
+  try{ loginUser.focus({ preventScroll: true }); }catch(e){}
+}
+
+document.getElementById('signOutBtn').addEventListener('click', doSignOut_);
 
 // ============================================================
 // ⚠️ Remember Me — استعادة الجلسة عند فتح الصفحة.
