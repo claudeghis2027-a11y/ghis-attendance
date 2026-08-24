@@ -283,7 +283,7 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
   </div>
   <div class="field" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
     <input id="rememberMe" type="checkbox" style="width:18px; height:18px; margin:0;">
-    <label for="rememberMe" id="labelRememberMe" style="margin:0; font-size:13px; font-weight:600; cursor:pointer;">تذكر كلمة المرور على الجهاز ده</label>
+    <label for="rememberMe" id="labelRememberMe" style="margin:0; font-size:13px; font-weight:600; cursor:pointer;">تذكّر تسجيل الدخول</label>
   </div>
 
   <div class="actions">
@@ -404,7 +404,8 @@ const LANG = {
     placeholderUser: 'مثال: 42 أو X000001',
     labelPass: 'كلمة المرور',
     labelShowLoginPass: 'إظهار كلمة المرور',
-    labelRememberMe: 'تذكر كلمة المرور على الجهاز ده',
+    labelRememberMe: 'تذكّر تسجيل الدخول',
+    err_sessionExpired: 'انتهت جلستك — سجّل دخولك من تاني.',
     loginBtnLabel: 'دخول',
     loginBtnLabelBusy: 'بيتحقق...',
     changePassLink: 'نسيت كلمة المرور؟ / غيّرها',
@@ -493,7 +494,8 @@ const LANG = {
     placeholderUser: 'e.g. 42 or X000001',
     labelPass: 'Password',
     labelShowLoginPass: 'Show password',
-    labelRememberMe: 'Remember password on this device',
+    labelRememberMe: 'Keep me signed in',
+    err_sessionExpired: 'Your session expired — please log in again.',
     loginBtnLabel: 'Login',
     loginBtnLabelBusy: 'Checking...',
     changePassLink: 'Forgot password? / Change it',
@@ -685,6 +687,40 @@ showCpPass.addEventListener('change', () => {
   cpNew2.type = t;
 });
 
+// ============================================================
+// ⚠️ Remember Me — Session Token بس.
+// ⛔ صفر تخزين لكلمة المرور في localStorage أو sessionStorage أو أي
+//    مكان تاني — لا هنا ولا في أي نقطة تانية في الملف.
+// ⛔ صفر fetch جديد عند فتح الصفحة. التوكن المحفوظ بيتحط في
+//    currentSessionToken على طول وبيتستخدم مع الطلبات الموجودة
+//    أصلاً، وصلاحيته بتتأكد من أول رد طبيعي بيرجع من السيرفر.
+// ============================================================
+const REMEMBER_TOKEN_KEY = 'ghs_session_token';
+
+function saveSessionToken_(token){
+  try{ localStorage.setItem(REMEMBER_TOKEN_KEY, token); }catch(e){}
+}
+function clearSessionToken_(){
+  try{ localStorage.removeItem(REMEMBER_TOKEN_KEY); }catch(e){}
+}
+function readSessionToken_(){
+  try{ return localStorage.getItem(REMEMBER_TOKEN_KEY) || ''; }catch(e){ return ''; }
+}
+
+// ⛔ بيتنادى على أي رد طبيعي راجع من السيرفر. لو التوكن انتهى،
+// بيمسح المحفوظ ويرجّع شاشة الدخول. بيرجع true لو الجلسة انتهت.
+// صفر طلب إضافي — بيقرا رد موجود خلاص.
+function handleExpiredSession_(result){
+  if (!result || result.message !== 'invalid_or_expired_token') return false;
+  clearSessionToken_();
+  currentSessionToken = null;
+  if (mainCard) mainCard.style.display = 'none';
+  if (loginCard) loginCard.style.display = '';
+  loginPass.value = '';
+  showLoginError(T('err_sessionExpired'));
+  return true;
+}
+
 function showLoginError(msg){
   loginStatus.className = 'status show warn';
   loginStatus.innerHTML = '<b>' + msg + '</b>';
@@ -750,6 +786,13 @@ async function doLogin(){
     mainCard.style.display = '';
     empCodeInput.value = user;
     currentSessionToken = result.token || null;
+    // ⚠️ Remember Me — Session Token بس، ومش بيتحفظ غير لما الموظف
+    // يفعّل الـCheckbox بنفسه. ⛔ صفر تخزين لكلمة المرور إطلاقًا.
+    if (rememberMe && rememberMe.checked && currentSessionToken) {
+      saveSessionToken_(currentSessionToken);
+    } else {
+      clearSessionToken_();
+    }
     // ⬅️ Perf — تحميل موديلات face-api (~12MB) في الوقت الميت بين
     // الدخول والضغط على زرار التسجيل، بدل ما الموظف يستناها وهو
     // واقف بيبصم. fire-and-forget: مش بننتظرها ومش بتوقف أي حاجة،
@@ -1449,7 +1492,10 @@ async function empSelf_(op, payload){
       lat: empLastCoords_ ? empLastCoords_.lat : null, lng: empLastCoords_ ? empLastCoords_.lng : null,
       payload: payload || null }),
   });
-  return await resp.json();
+  // ⚠️ Remember Me — فحص انتهاء الجلسة على رد موجود خلاص. صفر طلب إضافي.
+  const _r = await resp.json();
+  handleExpiredSession_(_r);
+  return _r;
 }
 
 function empEsc_(s){ return String(s == null ? '' : s)
@@ -1578,7 +1624,10 @@ async function attApi_(payload){
     method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
     body: JSON.stringify(Object.assign({ token: currentSessionToken || '' }, payload)),
   });
-  return await resp.json();
+  // ⚠️ Remember Me — فحص انتهاء الجلسة على رد موجود خلاص. صفر طلب إضافي.
+  const _r = await resp.json();
+  handleExpiredSession_(_r);
+  return _r;
 }
 
 function showForcedPasswordModal_(){
@@ -1607,6 +1656,9 @@ async function submitForcedPassword_(){
     // ⛔ التوكن القديم بطل (البصمة اتغيّرت). لازم نستبدله وإلا كل
     // نداء بعده هيترفض بـinvalid_or_expired_token.
     if (r.token) currentSessionToken = r.token;
+    // ⚠️ Remember Me — التوكن القديم بطل، فلو الموظف مفعّل التذكّر
+    // لازم المحفوظ يتحدّث وإلا هيفضل بايت.
+    if (r.token && readSessionToken_()) saveSessionToken_(r.token);
     document.getElementById('forcePwOverlay').style.display = 'none';
     proceedAfterLogin_();
   } catch (e) { err.textContent='تعذّر الاتصال.'; err.style.display=''; btn.disabled=false; }
@@ -1813,6 +1865,8 @@ async function sendCheckInOut(type, code, lat, lng, distance, locationName, proo
     return;
   }
   if(result && result.status === 'error'){
+    // ⚠️ Remember Me — انتهاء الجلسة له مساره الخاص. صفر طلب إضافي.
+    if (handleExpiredSession_(result)) return;
     showStatus('warn', T('err_genericTitle'), T('err_genericBody'));
     return;
   }
@@ -2013,6 +2067,37 @@ checkoutBtn.addEventListener('click', () => handleClick(checkoutBtn));
 document.addEventListener('visibilitychange', () => {
   const el = document.getElementById('empViewProfile');
   if (el) el.style.filter = document.hidden ? 'blur(18px)' : '';
+});
+
+// ============================================================
+// ⚠️ Remember Me — استعادة الجلسة عند فتح الصفحة.
+// ⛔ صفر fetch · صفر API · صفر انتظار. بنقرا التوكن من localStorage
+//    ونحطه في currentSessionToken وندخل على طول. أول طلب طبيعي
+//    (بصمة/بياناتي) هو اللي بيكشف لو التوكن انتهى، عن طريق
+//    handleExpiredSession_.
+// ⛔ الحالة الراجعة من Login (mustChangePassword / hasActivePhoto /
+//    canUploadPhoto) مش متاحة هنا لأننا مش بنعمل طلب. فبنسيب
+//    empLoginState_ على قيمته الافتراضية ومابنناديش
+//    proceedAfterLogin_ — عشان مانعرضش تحذير صورة كاذب لموظف سليم.
+//    المنع الحقيقي سيرفر-سايد (enforceEmployeeGate_) شغّال زي ما هو.
+// ============================================================
+window.addEventListener('load', () => {
+  const savedToken = readSessionToken_();
+  if (!savedToken) return;
+  currentSessionToken = savedToken;
+  if (rememberMe) rememberMe.checked = true;
+  // لو الموظف مختارش لغة قبل كده (حالة نادرة)، بنطبق العربية عشان
+  // شاشة اللغة ماتفضلش ظاهرة فوق الواجهة المسجّل فيها.
+  if (!currentLang) applyLanguage('ar');
+  const langCardEl = document.getElementById('langCard');
+  if (langCardEl) langCardEl.style.display = 'none';
+  loginCard.style.display = 'none';
+  mainCard.style.display = '';
+  try{
+    const savedCode = localStorage.getItem('ghs_emp_code');
+    if (savedCode) empCodeInput.value = savedCode;
+  }catch(e){}
+  gateProfileTab_();   // ⬅️ نفس النداء اللي بعد Login بالحرف
 });
 </script>
 
