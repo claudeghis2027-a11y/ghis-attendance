@@ -985,6 +985,26 @@ async function fetchReferencePhoto(){
 tRaw_('PHOTO_FINAL_URL[' + resp.url + ']');
   const _j = await resp.json();
   tMark_('PHOTO_BODY_PARSED');
+     +  // P2 DIAGNOSTIC ONLY — قراءة Resource Timing الموجود بالفعل.
++  // صفر fetch جديد · صفر تغيير في الطلب · صفر تغيير في الـpayload.
++  try {
++    const _entries = performance.getEntriesByName(CONFIG.SCRIPT_URL);
++    const _pe = _entries.length ? _entries[_entries.length - 1] : null;
++    if (_pe) {
++      tRaw_('NET_TIMING['
++        + 'duration=' + Math.round(_pe.duration)
++        + '|redirectStart=' + Math.round(_pe.redirectStart || 0)
++        + '|redirectEnd=' + Math.round(_pe.redirectEnd || 0)
++        + '|responseStart=' + Math.round(_pe.responseStart || 0)
++        + '|transfer=' + Math.round(_pe.transferSize || 0)
++        + ']');
++    } else {
++      tRaw_('NET_TIMING[unavailable]');
++    }
++  } catch (e) {
++    tRaw_('NET_TIMING[read_failed]');
++  }
+   return _j;
   return _j;
 }
 
