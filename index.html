@@ -974,12 +974,17 @@ async function detectSingleFaceDescriptor(imageOrVideoElement){
 // نظام البصمة — الكود بيتحدد من التوكن بس في الباك إند، صفر إرسال
 // لكود موظف من هنا.
 async function fetchReferencePhoto(){
+  // DIAGNOSTIC ONLY — لا تغيير في fetch نفسه.
+  tMark_('PHOTO_SENT');
   const resp = await fetch(CONFIG.SCRIPT_URL, {
     method: 'POST',
     headers: {'Content-Type': 'text/plain;charset=utf-8'},
     body: JSON.stringify({ action: 'getReferencePhoto', token: currentSessionToken || '' }),
   });
-  return resp.json();
+  tMark_('PHOTO_HEADERS[' + resp.status + '|redir=' + (resp.redirected ? 1 : 0) + ']');
+  const _j = await resp.json();
+  tMark_('PHOTO_BODY_PARSED');
+  return _j;
 }
 
 async function requestVerificationProof(operationType){
@@ -1198,6 +1203,8 @@ async function runFaceVerification(operationType, btn){
         tMark_('PHOTO_DONE');
         // ⚠️ Diagnostic — تفصيل السيرفر لزمن fetchReferencePhoto. عرض بحت.
         if (r && r.timing) tMark_('SRV[' + r.timing + '|sizeKB=' + (r.sizeKB || '?') + ']');
+        // DIAGNOSTIC ONLY — قراءة length فقط، بدون تعديل الـpayload.
+        tRaw_('B64_LEN[' + ((r && r.referencePhotoBase64) ? r.referencePhotoBase64.length : 0) + ']');
         return r;
       }),
       ensureFaceApiModelsLoaded().then(r => { tMark_('MODELS_DONE'); return r; }),
