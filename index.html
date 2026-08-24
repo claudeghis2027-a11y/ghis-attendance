@@ -1126,6 +1126,14 @@ let lastRefPhotoDiag_ = null;
 // ⚠️ Diagnostic مؤقت — بيحدد أول نقطة فشل بين تحميل الصورة المرجعية
 // والكشف عليها. ⛔ صفر Base64 · صفر token · صفر بيانات شخصية.
 let lastRefStepDiag_ = null;
+// ⚠️ Diagnostic توقيت مؤقت — أرقام بالملّي ثانية بس.
+// ⛔ صفر Base64 · صفر token · صفر بيانات شخصية.
+// tMark_ بتحسب رقمًا وتضيفه لمصفوفة — صفر await، صفر تأثير على أي مسار.
+let lastTimingDiag_ = null;
+function tMark_(label){
+  if (!lastTimingDiag_) return;
+  lastTimingDiag_.marks.push(label + '=' + Math.round(performance.now() - lastTimingDiag_.t0));
+}
 
 async function runFaceVerification(operationType, btn){
   setPhase_(btn, 'phase_loadingRef'); // ⬅️ عرض فقط
@@ -1134,9 +1142,14 @@ async function runFaceVerification(operationType, btn){
   // التتابع. نفس النتائج ونفس أكواد الفشل بالحرف.
   let refPhotoResp;
   try {
+    // ⚠️ Diagnostic — كل promise متعلّم على حدة بـ.then عشان نقيس زمن
+    // كل عملية مستقلة. الـPromise.all نفسه والترتيب والقيم المُرجَعة كما
+    // هي بالحرف — .then بيمرّر القيمة زي ما هي بلا أي تعديل.
+    tMark_('PHOTO_START');
+    tMark_('MODELS_START');
     const [photoResult] = await Promise.all([
-      fetchReferencePhoto(),
-      ensureFaceApiModelsLoaded(),
+      fetchReferencePhoto().then(r => { tMark_('PHOTO_DONE'); return r; }),
+      ensureFaceApiModelsLoaded().then(r => { tMark_('MODELS_DONE'); return r; }),
     ]);
     refPhotoResp = photoResult;
     lastRefPhotoDiag_ = {
@@ -1185,8 +1198,10 @@ async function runFaceVerification(operationType, btn){
   // من الدالة كلها ويتلقفه catch في runFaceVerificationAndSubmit_ اللي
   // بيرجّع technical_failure برضه. ⇒ النتيجة النهائية متطابقة.
   let refDetection;
+  tMark_('REFERENCE_DETECTION_START');
   try {
     refDetection = await detectSingleFaceDescriptor(refImg);
+    tMark_('REFERENCE_DETECTION_DONE');
   } catch (err) {
     lastRefStepDiag_.step = 'FACE_DETECTION_EXCEPTION';
     lastRefStepDiag_.error = String((err && err.message) || err);
@@ -1210,7 +1225,9 @@ async function runFaceVerification(operationType, btn){
   let stream = null;
   try {
     setPhase_(btn, 'phase_openingCamera'); // ⬅️ عرض فقط
+    tMark_('CAMERA_START');
     stream = await openLiveCameraForVerification(videoElement);
+    tMark_('CAMERA_READY');
   } catch (err) {
     return { outcome: 'camera_denied' };
   }
@@ -1768,12 +1785,20 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
           + (lastRefStepDiag_.error !== undefined
               ? '<br>error: ' + lastRefStepDiag_.error : '');
       }
+      if (lastTimingDiag_ && lastTimingDiag_.marks.length) {
+        statusBox.className = 'status show warn';
+        statusBox.innerHTML = '<b>TIMING (ms)</b>' + lastTimingDiag_.marks.join('<br>');
+      }
       return;
 
     case 'match':
       reportFaceOutcome_('match', verification.distance);
       setPhase_(btn, 'phase_recording'); // ⬅️ عرض فقط
       await sendCheckInOut(type, code, lat, lng, distance, locationName, verification.proofToken);
+      if (lastTimingDiag_ && lastTimingDiag_.marks.length) {
+        statusBox.className = 'status show warn';
+        statusBox.innerHTML = '<b>TIMING (ms)</b>' + lastTimingDiag_.marks.join('<br>');
+      }
       return;
 
     case 'camera_denied':
@@ -1835,10 +1860,13 @@ function handleClick(btn){
   // ⛔ صفر تغيير في ترتيب أي فحص أمني: كل فحوصات الرفض المبكر
   // (الكود · الـcooldown · توفّر GPS · وجود LOCATIONS) فوق دي،
   // والموديلات مالهاش علاقة بالتحقق من الموقع ولا النطاق.
+  lastTimingDiag_ = { t0: performance.now(), marks: [] };
+  tMark_('START');
   ensureFaceApiModelsLoaded().catch(() => {});
 
   navigator.geolocation.getCurrentPosition(
     (pos) => {
+      tMark_('GPS_DONE');
       const { latitude, longitude, accuracy } = pos.coords;
       let best = null;
       for(const loc of CONFIG.LOCATIONS){
