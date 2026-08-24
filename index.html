@@ -435,6 +435,7 @@ const LANG = {
     phase_recording: 'جاري معالجة التسجيل...',
     metaDistDefault: 'المسافة: —',
     signOutBtnLabel: 'تسجيل الخروج',
+    err_noDataWindow: 'لا توجد بيانات متاحة الآن خارج التوقيت المحدد.',
     footNote: 'لو الزرار مبيشتغلش، اتأكد إن إذن الموقع (Location) والكاميرا مفعّلين للمتصفح من إعدادات الجهاز.<br>مشكلة مستمرة؟ كلم قسم شئون العاملين.',
     welcomeName: (name, code) => 'أهلاً يا ' + name + ' (كود ' + code + ') 👋',
     err_needCode: 'اكتب كود الموظف الأول',
@@ -526,6 +527,7 @@ const LANG = {
     phase_recording: 'Processing your record...',
     metaDistDefault: 'Distance: —',
     signOutBtnLabel: 'Sign Out',
+    err_noDataWindow: 'No data is available now outside the specified time.',
     footNote: "If the button doesn't work, make sure Location and Camera permissions are enabled for the browser in your device settings.<br>Still having trouble? Contact HR.",
     welcomeName: (name, code) => 'Hi ' + name + ' (code ' + code + ') 👋',
     err_needCode: 'Enter your employee code first',
@@ -815,8 +817,6 @@ async function doLogin(){
       photoRejected: !!result.photoRejected,
       canUploadPhoto: !!result.canUploadPhoto,
       faceReview: String(result.faceReview || ''),
-      // ⛔ Boolean بس — صفر وقت وصفر مدة وصفر Countdown.
-      empDataWindowOpen: !!result.empDataWindowOpen,
     };
     gateProfileTab_();          // ⛔ التبويب مخفي لحد ما GPS يأكد النطاق
     proceedAfterLogin_();
@@ -1535,12 +1535,11 @@ async function loadEmpProfile_(){
   try {
     const [prof, docs] = await Promise.all([ empSelf_('profile'), empSelf_('documents') ]);
     if (prof.status !== 'ok') {
-      // ⛔ Employee Data Window — أول رد بيقفل النافذة بيخفي الأيقونة
-      // كمان، عشان الجلسة المستعادة تتصحّح من غير أي طلب إضافي.
-      if (prof.message === 'data_window_closed') {
-        empLoginState_.empDataWindowOpen = false;
-        const tabEl = document.getElementById('tabProfile');
-        if (tabEl) tabEl.style.display = 'none';
+      // ⛔ Employee Data Window — رسالة عدم التوفر بس، بنظام اللغة الحالي.
+      // ⛔ صفر إخفاء للأيقونة · صفر وقت بداية · صفر وقت نهاية · صفر مدة
+      // · صفر Countdown. القرار كله سيرفر-سايد.
+      if (prof.message === 'NO_DATA_AVAILABLE_NOW') {
+        el.innerHTML = '<div class="empNote warn">' + empEsc_(T('err_noDataWindow')) + '</div>'; return;
       }
       el.innerHTML = '<div class="empNote warn">' + empEsc_(prof.userMessage || 'تعذّر تحميل البيانات.') + '</div>'; return; }
     empProfileCache = prof;
@@ -1645,11 +1644,7 @@ async function loadEmpReport_(){
 // ⛔ كل المنع الفعلي سيرفر-سايد. الواجهة عرض وتوجيه بس.
 // ============================================================
 let empLoginState_ = { mustChangePassword:false, hasActivePhoto:false,
-                       photoRejected:false, canUploadPhoto:false, faceReview:'',
-                       // ⛔ Employee Data Window — بتيجي من رد Login الموجود
-                       // أصلاً. null = غير معروفة (جلسة مستعادة بتوكن محفوظ،
-                       // ومفيش Login في المسار ده). القرار الحاسم سيرفر-سايد.
-                       empDataWindowOpen: null };
+                       photoRejected:false, canUploadPhoto:false, faceReview:'' };
 
 async function attApi_(payload){
   const resp = await fetch(CONFIG.SCRIPT_URL, {
@@ -1776,10 +1771,9 @@ async function gateProfileTab_(){
   const near = findNearestLocation_(c.lat, c.lng);   // ⬅️ الدالة الموجودة
   if (!near || near.distance > near.location.radius) return;
   empLastCoords_ = c;
-  // ⛔ Employee Data Window — إخفاء الأيقونة خارج النافذة. false صريحة
-  // بس هي اللي بتخفي؛ null (جلسة مستعادة) بتسيب الأيقونة والسيرفر هو
-  // اللي بيحسم. ده إخفاء واجهة فقط — المنع الحقيقي في Code.gs.
-  if (empLoginState_.empDataWindowOpen === false) return;
+  // ⛔ Employee Data Window — الأيقونة بتفضل ظاهرة دائمًا بنفس التصميم،
+  // عشان الموظف مايستنتجش من ظهورها/اختفائها إن فيه نافذة زمنية أصلاً.
+  // المنع الحقيقي سيرفر-سايد بالكامل في Code.gs.
   if (tab) tab.style.display = '';
 }
 
@@ -2135,8 +2129,7 @@ function doSignOut_(){
   empProfileCache = null;
   empLastCoords_ = null;
   empLoginState_ = { mustChangePassword:false, hasActivePhoto:false,
-                     photoRejected:false, canUploadPhoto:false, faceReview:'',
-                     empDataWindowOpen: null };
+                     photoRejected:false, canUploadPhoto:false, faceReview:'' };
   try { switchEmpTab('attendance'); } catch (e) {}
   const profTab = document.getElementById('tabProfile');
   if (profTab) profTab.style.display = 'none';
