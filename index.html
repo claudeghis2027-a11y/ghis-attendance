@@ -1005,40 +1005,6 @@ tRaw_('PHOTO_FINAL_URL[' + resp.url + ']');
     tRaw_('NET_TIMING[read_failed]');
   }
 
-  // P3 DIAGNOSTIC ONLY — فحص Resource Timing للـredirect النهائي.
-  // صفر fetch جديد · صفر تغيير في الطلب · صفر تغيير في الـpayload.
-  try {
-    const _resEntries = performance.getEntriesByType('resource');
-    const _hits = _resEntries.filter(function(e) {
-      return e && e.name &&
-        (e.name.indexOf('script.google.com/macros/') !== -1 ||
-         e.name.indexOf('script.googleusercontent.com/macros/') !== -1);
-    });
-
-    if (_hits.length) {
-      const _last = _hits[_hits.length - 1];
-      let _host = '?';
-      try {
-        _host = new URL(_last.name).host;
-      } catch (e) {}
-
-      tRaw_('RESOURCE_FINAL['
-        + 'host=' + _host
-        + '|duration=' + Math.round(_last.duration || 0)
-        + '|redirect=' + Math.round(_last.redirectEnd || 0)
-        + '|response=' + Math.round(_last.responseStart || 0)
-        + '|transfer=' + Math.round(_last.transferSize || 0)
-        + ']');
-    } else {
-      tRaw_('RESOURCE_FINAL[not_found]');
-    }
-  } catch (e) {
-    tRaw_('RESOURCE_FINAL[read_failed]');
-  }
-
-  return _j;
-}
-     
   return _j;
 }
 
