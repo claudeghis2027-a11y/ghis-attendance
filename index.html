@@ -808,6 +808,8 @@ async function doLogin(){
       photoRejected: !!result.photoRejected,
       canUploadPhoto: !!result.canUploadPhoto,
       faceReview: String(result.faceReview || ''),
+      // ⛔ Boolean بس — صفر وقت وصفر مدة وصفر Countdown.
+      empDataWindowOpen: !!result.empDataWindowOpen,
     };
     gateProfileTab_();          // ⛔ التبويب مخفي لحد ما GPS يأكد النطاق
     proceedAfterLogin_();
@@ -1236,6 +1238,17 @@ let lastRefStepDiag_ = null;
 let lastTimingDiag_ = null;
 // ⚠️ Diagnostic — سلسلة detectSingleFaceDescriptor التراكمية.
 let lastDetectionChainDiag_ = null;
+// ============================================================
+// ⚠️ Production — حارس عرض للـDiagnostics في واجهة الموظف.
+// false = اللوحة مخفية تمامًا عن الموظف.
+// ⛔ التسجيل الداخلي شغّال زي ما هو بالحرف: tMark_ · tRaw_ ·
+//    lastTimingDiag_ · lastRefPhotoDiag_ · lastRefStepDiag_ ·
+//    lastDetectionChainDiag_ وكل الـmarkers بتتجمع عادي في الذاكرة.
+//    ده حارس عرض بس — صفر حذف وصفر تغيير في طريقة التسجيل.
+// للتشخيص لاحقًا: غيّرها لـtrue مؤقتًا وارجّعها false قبل الإنتاج.
+// ============================================================
+const SHOW_DIAGNOSTICS_UI_ = false;
+
 function tMark_(label){
   if (!lastTimingDiag_) return;
   lastTimingDiag_.marks.push(label + '=' + Math.round(performance.now() - lastTimingDiag_.t0));
@@ -1514,7 +1527,15 @@ async function loadEmpProfile_(){
   el.innerHTML = '<p class="sub">جاري تحميل بياناتك...</p>';
   try {
     const [prof, docs] = await Promise.all([ empSelf_('profile'), empSelf_('documents') ]);
-    if (prof.status !== 'ok') { el.innerHTML = '<div class="empNote warn">' + empEsc_(prof.userMessage || 'تعذّر تحميل البيانات.') + '</div>'; return; }
+    if (prof.status !== 'ok') {
+      // ⛔ Employee Data Window — أول رد بيقفل النافذة بيخفي الأيقونة
+      // كمان، عشان الجلسة المستعادة تتصحّح من غير أي طلب إضافي.
+      if (prof.message === 'data_window_closed') {
+        empLoginState_.empDataWindowOpen = false;
+        const tabEl = document.getElementById('tabProfile');
+        if (tabEl) tabEl.style.display = 'none';
+      }
+      el.innerHTML = '<div class="empNote warn">' + empEsc_(prof.userMessage || 'تعذّر تحميل البيانات.') + '</div>'; return; }
     empProfileCache = prof;
     renderEmpProfile_(prof, docs);
     empSetWatermark_();
@@ -1617,7 +1638,11 @@ async function loadEmpReport_(){
 // ⛔ كل المنع الفعلي سيرفر-سايد. الواجهة عرض وتوجيه بس.
 // ============================================================
 let empLoginState_ = { mustChangePassword:false, hasActivePhoto:false,
-                       photoRejected:false, canUploadPhoto:false, faceReview:'' };
+                       photoRejected:false, canUploadPhoto:false, faceReview:'',
+                       // ⛔ Employee Data Window — بتيجي من رد Login الموجود
+                       // أصلاً. null = غير معروفة (جلسة مستعادة بتوكن محفوظ،
+                       // ومفيش Login في المسار ده). القرار الحاسم سيرفر-سايد.
+                       empDataWindowOpen: null };
 
 async function attApi_(payload){
   const resp = await fetch(CONFIG.SCRIPT_URL, {
@@ -1744,6 +1769,10 @@ async function gateProfileTab_(){
   const near = findNearestLocation_(c.lat, c.lng);   // ⬅️ الدالة الموجودة
   if (!near || near.distance > near.location.radius) return;
   empLastCoords_ = c;
+  // ⛔ Employee Data Window — إخفاء الأيقونة خارج النافذة. false صريحة
+  // بس هي اللي بتخفي؛ null (جلسة مستعادة) بتسيب الأيقونة والسيرفر هو
+  // اللي بيحسم. ده إخفاء واجهة فقط — المنع الحقيقي في Code.gs.
+  if (empLoginState_.empDataWindowOpen === false) return;
   if (tab) tab.style.display = '';
 }
 
@@ -1909,13 +1938,13 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
       await sendCheckInOut(type, code, lat, lng, distance, locationName, null);
       // ⚠️ Diagnostic — بعد sendCheckInOut عشان مايتمسحش (الدالة دي
       // بتنادي showStatus/showGreeting بنفسها). عرض بحت.
-      if (verification.reason) {
+      if (SHOW_DIAGNOSTICS_UI_ && verification.reason) {
         statusBox.className = 'status show warn';
         statusBox.innerHTML = '<b>تشخيص الصورة المرجعية</b>reason: '
           + String(verification.reason) + ' — outcome: ' + verification.outcome;
       }
       // ⚠️ Diagnostic — الرد الخام، 4 حقول بس. عرض بحت.
-      if (lastRefPhotoDiag_) {
+      if (SHOW_DIAGNOSTICS_UI_ && lastRefPhotoDiag_) {
         statusBox.className = 'status show warn';
         statusBox.innerHTML = '<b>تشخيص الرد الخام</b>'
           + 'status: ' + String(lastRefPhotoDiag_.status)
@@ -1924,7 +1953,7 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
           + '<br>hasReferencePhoto: ' + String(lastRefPhotoDiag_.hasReferencePhoto)
           + '<br>outcome: ' + verification.outcome;
       }
-      if (lastRefStepDiag_) {
+      if (SHOW_DIAGNOSTICS_UI_ && lastRefStepDiag_) {
         statusBox.className = 'status show warn';
         statusBox.innerHTML = '<b>REF_DIAG_STEP</b>'
           + String(lastRefStepDiag_.step)
@@ -1937,7 +1966,7 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
           + (lastRefStepDiag_.error !== undefined
               ? '<br>error: ' + lastRefStepDiag_.error : '');
       }
-      if (lastTimingDiag_ && lastTimingDiag_.marks.length) {
+      if (SHOW_DIAGNOSTICS_UI_ && lastTimingDiag_ && lastTimingDiag_.marks.length) {
         statusBox.className = 'status show warn';
         statusBox.innerHTML = '<b>TIMING (ms)</b>' + lastTimingDiag_.marks.join('<br>');
       }
@@ -1947,7 +1976,7 @@ async function runFaceVerificationAndSubmit_(pending, btn, label){
       reportFaceOutcome_('match', verification.distance);
       setPhase_(btn, 'phase_recording'); // ⬅️ عرض فقط
       await sendCheckInOut(type, code, lat, lng, distance, locationName, verification.proofToken);
-      if (lastTimingDiag_ && lastTimingDiag_.marks.length) {
+      if (SHOW_DIAGNOSTICS_UI_ && lastTimingDiag_ && lastTimingDiag_.marks.length) {
         statusBox.className = 'status show warn';
         statusBox.innerHTML = '<b>TIMING (ms)</b>' + lastTimingDiag_.marks.join('<br>');
       }
