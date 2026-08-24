@@ -924,7 +924,15 @@ async function ensureFaceApiModelsLoaded(){
 // ⬅️ بيرجع Descriptor واحد (Float32Array) من عنصر صورة/فيديو، أو
 // null لو صفر وش أو أكتر من وش. صفر تخزين لأي بيانات وسيطة خارج
 // نطاق الدالة دي.
+// ⚠️ DIAGNOSTIC مؤقت — عدّاد نداءات، رقم صحيح معزول.
+let _diagDetectCall = 0;
 async function detectSingleFaceDescriptor(imageOrVideoElement){
+  // ⚠️ DIAGNOSTIC — قراءة getters من العنصر الممرَّر. صفر Inference.
+  const _callNo = ++_diagDetectCall;
+  const _isVideo = (typeof HTMLVideoElement !== 'undefined')
+                   && (imageOrVideoElement instanceof HTMLVideoElement);
+  const _srcW = _isVideo ? imageOrVideoElement.videoWidth  : imageOrVideoElement.naturalWidth;
+  const _srcH = _isVideo ? imageOrVideoElement.videoHeight : imageOrVideoElement.naturalHeight;
   // ⚠️ Diagnostic — نفس الـchain بالحرف وصفر تغيير في الخيارات أو
   // النتيجة، بس مقسومة لثلاث await عشان نقيس وقت كل مرحلة. الأوقات
   // تراكمية بطبيعة face-api (كل Task بيشمل اللي قبله) — الفرق بين
@@ -939,6 +947,24 @@ async function detectSingleFaceDescriptor(imageOrVideoElement){
   const t3 = t2.withFaceDescriptors();
   const detections = await t3; _dk('withFaceDescriptors');
   lastDetectionChainDiag_ = _dMarks.join('|');
+  // ⚠️ DIAGNOSTIC مؤقت — بتقرا أرقام اتحسبت خلاص في _dMarks +
+  // detections.length. ⛔ صفر await جديد · صفر detectAllFaces جديد
+  // ⛔ صفر tf · صفر warm-up · السلسلة فوق متلمستش بأي شكل.
+  // السقف 6 عشان اللوحة ماتطولش لو الكشف لفّ لحد الـTimeout.
+  if (_callNo <= 6) {
+    try {
+      const _n = _dMarks.map(function(s){ return Number(s.split('=')[1]); });
+      tRaw_('DETECT#' + _callNo + '[' + (_isVideo ? 'VIDEO' : 'IMAGE')
+            + '|' + _srcW + 'x' + _srcH + ']');
+      tRaw_('&nbsp;&nbsp;detect=' + _n[0]);
+      tRaw_('&nbsp;&nbsp;landmarks=' + (_n[1] - _n[0]));
+      tRaw_('&nbsp;&nbsp;descriptors=' + (_n[2] - _n[1]));
+      tRaw_('&nbsp;&nbsp;total=' + _n[2]);
+      tRaw_('&nbsp;&nbsp;faces=' + (detections ? detections.length : 0));
+    } catch (e) {
+      tRaw_('DETECT#' + _callNo + '[log_failed]');
+    }
+  }
   if (!detections || detections.length === 0) return { status: 'no_face' };
   if (detections.length > 1) return { status: 'multiple_faces' };
   return { status: 'ok', descriptor: detections[0].descriptor };
@@ -1147,6 +1173,14 @@ function tMark_(label){
   lastTimingDiag_.marks.push(label + '=' + Math.round(performance.now() - lastTimingDiag_.t0));
 }
 
+// ⚠️ DIAGNOSTIC مؤقت — بتضيف سطر نصّي للوحة TIMING زي ما هو، من
+// غير ما تلزّق زمن. ⛔ صفر حساب · صفر قراءة وقت · صفر تأثير على أي
+// مسار — مجرد push على مصفوفة عرض.
+function tRaw_(text){
+  if (!lastTimingDiag_) return;
+  lastTimingDiag_.marks.push(text);
+}
+
 async function runFaceVerification(operationType, btn){
   setPhase_(btn, 'phase_loadingRef'); // ⬅️ عرض فقط
   // ⬅️ Perf — المرحلتان مستقلتان تمامًا عن بعض (الصورة المرجعية من
@@ -1252,6 +1286,19 @@ async function runFaceVerification(operationType, btn){
     tMark_('CAMERA_START');
     stream = await openLiveCameraForVerification(videoElement);
     tMark_('CAMERA_READY');
+    // ⚠️ DIAGNOSTIC مؤقت — قراءة getters من الـstream والـvideo
+    // الموجودين خلاص. ⛔ صفر getUserMedia · صفر applyConstraints
+    // ⛔ صفر لمس CSS · صفر Inference · صفر tf · صفر await.
+    try {
+      const _tr = stream.getVideoTracks()[0];
+      const _st = _tr ? _tr.getSettings() : {};
+      tRaw_('CAMERA[' + videoElement.videoWidth + 'x' + videoElement.videoHeight
+            + '|track=' + (_st.width || '?') + 'x' + (_st.height || '?')
+            + '|fps=' + (_st.frameRate || '?')
+            + '|face=' + (_st.facingMode || '?') + ']');
+    } catch (e) {
+      tRaw_('CAMERA[read_failed]');
+    }
   } catch (err) {
     return { outcome: 'camera_denied' };
   }
