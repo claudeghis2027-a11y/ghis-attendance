@@ -435,7 +435,10 @@ const LANG = {
     phase_recording: 'جاري معالجة التسجيل...',
     metaDistDefault: 'المسافة: —',
     signOutBtnLabel: 'تسجيل الخروج',
-    err_noDataWindow: 'لا توجد بيانات متاحة الآن خارج التوقيت المحدد.',
+    err_noDataWindow: 'لا توجد بيانات حاليًا.',
+    err_selfOutOfRange: 'لا توجد بيانات — أنت خارج نطاق المدرسة.',
+    err_selfLocationReq: 'يرجى تفعيل الموقع والسماح للمتصفح بالوصول إلى موقعك.',
+    err_selfServerError: 'تعذّر تحميل البيانات حاليًا، حاول مرة أخرى.',
     footNote: 'لو الزرار مبيشتغلش، اتأكد إن إذن الموقع (Location) والكاميرا مفعّلين للمتصفح من إعدادات الجهاز.<br>مشكلة مستمرة؟ كلم قسم شئون العاملين.',
     welcomeName: (name, code) => 'أهلاً يا ' + name + ' (كود ' + code + ') 👋',
     err_needCode: 'اكتب كود الموظف الأول',
@@ -527,7 +530,10 @@ const LANG = {
     phase_recording: 'Processing your record...',
     metaDistDefault: 'Distance: —',
     signOutBtnLabel: 'Sign Out',
-    err_noDataWindow: 'No data is available now outside the specified time.',
+    err_noDataWindow: 'No data is available right now.',
+    err_selfOutOfRange: 'No data — you are outside the school area.',
+    err_selfLocationReq: 'Please enable location and allow the browser to access it.',
+    err_selfServerError: 'Could not load your data right now, please try again.',
     footNote: "If the button doesn't work, make sure Location and Camera permissions are enabled for the browser in your device settings.<br>Still having trouble? Contact HR.",
     welcomeName: (name, code) => 'Hi ' + name + ' (code ' + code + ') 👋',
     err_needCode: 'Enter your employee code first',
@@ -1529,24 +1535,37 @@ function empSetWatermark_(){
   el.setAttribute('data-wm', (code + ' · ' + name + ' · ' + stamp + '\n').repeat(14));
 }
 
+// ⚠️ خريطة رسائل الخطأ لشاشة الموظف — عرض بحت.
+// ⛔ الأولوية: (1) userMessage الجاي من الـGate — رسالة موثوقة من
+//    السيرفر ومخصّصة للموظف، (2) الخريطة للأخطاء المعروفة،
+//    (3) الرسالة العامة.
+// ⛔ صفر تغيير في أي Response Contract أو منطق أمني — الدالة بتقرا
+//    الرد الموجود خلاص وبترجّع نص بس.
+function empErrText_(r){
+  if (r && r.userMessage) return r.userMessage;   // ⬅️ رسائل الـGate أولاً
+  const m = r && r.message;
+  if (m === 'out_of_range')             return T('err_selfOutOfRange');
+  if (m === 'location_required')        return T('err_selfLocationReq');
+  if (m === 'NO_DATA_AVAILABLE_NOW')    return T('err_noDataWindow');
+  if (m === 'invalid_or_expired_token') return T('err_sessionExpired');
+  return T('err_selfServerError');
+}
+
 async function loadEmpProfile_(){
   const el = document.getElementById('empViewProfile');
   el.innerHTML = '<p class="sub">جاري تحميل بياناتك...</p>';
   try {
     const [prof, docs] = await Promise.all([ empSelf_('profile'), empSelf_('documents') ]);
     if (prof.status !== 'ok') {
-      // ⛔ Employee Data Window — رسالة عدم التوفر بس، بنظام اللغة الحالي.
+      // ⛔ الرسالة بقت مبنية على سبب الرفض الحقيقي عبر empErrText_.
       // ⛔ صفر إخفاء للأيقونة · صفر وقت بداية · صفر وقت نهاية · صفر مدة
-      // · صفر Countdown. القرار كله سيرفر-سايد.
-      if (prof.message === 'NO_DATA_AVAILABLE_NOW') {
-        el.innerHTML = '<div class="empNote warn">' + empEsc_(T('err_noDataWindow')) + '</div>'; return;
-      }
-      el.innerHTML = '<div class="empNote warn">' + empEsc_(prof.userMessage || 'تعذّر تحميل البيانات.') + '</div>'; return; }
+      // · صفر Countdown. القرار كله سيرفر-سايد زي ما هو.
+      el.innerHTML = '<div class="empNote warn">' + empEsc_(empErrText_(prof)) + '</div>'; return; }
     empProfileCache = prof;
     renderEmpProfile_(prof, docs);
     empSetWatermark_();
   } catch (err) {
-    el.innerHTML = '<div class="empNote warn">تعذّر الاتصال. برجاء المحاولة بعد قليل.</div>';
+    el.innerHTML = '<div class="empNote warn">' + empEsc_(T('err_selfServerError')) + '</div>';
   }
 }
 
@@ -1621,7 +1640,7 @@ async function loadEmpReport_(){
   area.innerHTML = '<p class="sub">جاري التحميل...</p>';
   try {
     const r = await empSelf_('report', { from: from, to: to });
-    if (r.status !== 'ok') { area.innerHTML = '<div class="empNote warn">' + empEsc_(r.userMessage || 'تعذّر تحميل الملخص.') + '</div>'; return; }
+    if (r.status !== 'ok') { area.innerHTML = '<div class="empNote warn">' + empEsc_(empErrText_(r)) + '</div>'; return; }
     const s = r.summary || {};
     const row = (l, v, u) => '<div class="empRow"><b>' + l + '</b><span>' + (v == null ? '—' : v) + (u || '') + '</span></div>';
     area.innerHTML = '<div style="margin-top:10px">'
@@ -1636,7 +1655,7 @@ async function loadEmpReport_(){
       + row('إجمالي الخصم', s.totalDeduction, ' يوم')
       + '</div>';
     empSetWatermark_();
-  } catch (err) { area.innerHTML = '<div class="empNote warn">تعذّر الاتصال.</div>'; }
+  } catch (err) { area.innerHTML = '<div class="empNote warn">' + empEsc_(T('err_selfServerError')) + '</div>'; }
 }
 
 // ============================================================
