@@ -228,6 +228,18 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
   .empPeriod{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
   .empPeriod input{flex:1;min-width:130px;padding:8px;border:1px solid #cfd8d4;border-radius:8px;font-family:inherit}
 
+  /* ===== Phase 3 — التنبيهات والإشعارات (إضافة بس، صفر تعديل فوق) ===== */
+  .notifBadge{display:none;min-width:18px;height:18px;line-height:18px;padding:0 5px;margin-inline-start:6px;
+    border-radius:9px;background:#c62828;color:#fff;font-size:11px;font-weight:700;vertical-align:middle}
+  .notifItem{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:start;
+    background:#fff;border:1px solid #e6ebe8;border-radius:10px;padding:10px 12px;margin-bottom:8px;
+    font-family:inherit;font-size:14px;color:#44544d;cursor:pointer}
+  .notifItem.unread{border-right:3px solid #c62828;font-weight:700;background:#fffafa}
+  .notifItem .notifWhen{font-size:12px;color:#7b8a84;font-weight:400;white-space:nowrap}
+  .notifBack{background:none;border:none;font-family:inherit;font-size:14px;color:var(--green);
+    font-weight:700;cursor:pointer;padding:4px 0;margin-bottom:8px}
+  .notifMsg{white-space:pre-wrap;line-height:1.8;font-size:14px;color:#44544d}
+
   /* ===== ردع فقط — لا يمنع Screenshot ولا يُدّعى ذلك =====
      watermark + منع التحديد/النسخ + منع الطباعة. صفر تعطيل F12
      أو زر الماوس (أساليب وهمية بلا قيمة أمنية). */
@@ -334,9 +346,12 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
   <!-- ⬅️ التبويبان — نفس الصفحة، صفر رابط منفصل للموظف -->
   <div class="empTabs" id="empTabs">
     <button class="empTab active" id="tabAttendance" onclick="switchEmpTab('attendance')">الحضور</button>
-    <button class="empTab" id="tabProfile" onclick="switchEmpTab('profile')">بياناتي</button>
+    <button class="empTab" id="tabProfile" onclick="switchEmpTab('profile')">التنبيهات والإشعارات<span class="notifBadge" id="notifBadge"></span></button>
   </div>
-  <div id="empViewProfile" class="protected" style="display:none"></div>
+  <!-- ⬅️ Phase 3 — نفس الحاوية (empViewProfile) بنفس الاسم و class="protected"
+       بالحرف. اتقسمت جوّه لقسمين بس: الإشعارات فوق و"بياناتي" تحتها (قرار 4B) —
+       ⛔ صفر حذف لأي منطق قائم، والـwatermark والـblur لسه شغالين على الحاوية كلها. -->
+  <div id="empViewProfile" class="protected" style="display:none"><div id="empNotifSection"></div><div id="empProfileSection"></div></div>
   <p class="sub" id="mainSub">لازم تكون جوه نطاق المدرسة عشان يتسجل حضورك أو انصرافك. دوس الزرار المناسب وانت واصل، وسيب المتصفح ياخد إذن الموقع والكاميرا.</p>
 
   <div class="field" id="empCodeField">
@@ -1508,7 +1523,12 @@ function switchEmpTab(name){
     if (el) el.style.display = (name === 'attendance') ? '' : 'none';
   });
   document.getElementById('empViewProfile').style.display = name === 'profile' ? '' : 'none';
-  if (name === 'profile' && !empProfileCache) loadEmpProfile_();
+  // ⬅️ Phase 3 — الإشعارات بتتحمّل كل فتح للتبويب (الحالة بتتغير من الإدارة).
+  // ⛔ "بياناتي" لسه بنفس سلوك الكاش القديم بالحرف — صفر تغيير.
+  if (name === 'profile') {
+    loadEmpNotifications_();
+    if (!empProfileCache) loadEmpProfile_();
+  }
 }
 
 async function empSelf_(op, payload){
@@ -1552,7 +1572,7 @@ function empErrText_(r){
 }
 
 async function loadEmpProfile_(){
-  const el = document.getElementById('empViewProfile');
+  const el = document.getElementById('empProfileSection');   // ⬅️ Phase 3 — القسم بدل الحاوية كلها
   el.innerHTML = '<p class="sub">جاري تحميل بياناتك...</p>';
   try {
     const [prof, docs] = await Promise.all([ empSelf_('profile'), empSelf_('documents') ]);
@@ -1612,7 +1632,7 @@ function renderEmpProfile_(prof, docs){
      + '</div><button class="secondary" onclick="loadEmpReport_()">عرض الملخص</button>'
      + '<div id="empReportArea"></div></div>';
 
-  document.getElementById('empViewProfile').innerHTML = h;
+  document.getElementById('empProfileSection').innerHTML = h;   // ⬅️ Phase 3 — القسم بدل الحاوية كلها
 }
 
 async function submitEmpProfile_(){
@@ -1632,10 +1652,15 @@ async function submitEmpProfile_(){
 }
 
 // ⛔ العرض بالأيام/الدقائق فقط — صفر مبالغ مالية (Whitelist سيرفر-سايد)
-async function loadEmpReport_(){
-  const from = document.getElementById('empFrom').value;
-  const to = document.getElementById('empTo').value;
-  const area = document.getElementById('empReportArea');
+// ⬅️ Phase 3 — الدالة بقت بتاخد ids اختيارية عشان شاشة الإشعار تعيد
+// استخدامها بالحرف بدل ما نكرّر المنطق. النداء القديم loadEmpReport_()
+// من غير باراميترات بيشتغل زي ما هو بالظبط — صفر تغيير في السلوك
+// الحالي · صفر تغيير في الـpayload · صفر تغيير في العرض.
+async function loadEmpReport_(fromId, toId, areaId){
+  fromId = fromId || 'empFrom'; toId = toId || 'empTo'; areaId = areaId || 'empReportArea';
+  const from = document.getElementById(fromId).value;
+  const to = document.getElementById(toId).value;
+  const area = document.getElementById(areaId);
   if (!from || !to) { area.innerHTML = '<div class="empNote warn">اختار الفترة الأول.</div>'; return; }
   area.innerHTML = '<p class="sub">جاري التحميل...</p>';
   try {
@@ -1656,6 +1681,196 @@ async function loadEmpReport_(){
       + '</div>';
     empSetWatermark_();
   } catch (err) { area.innerHTML = '<div class="empNote warn">' + empEsc_(T('err_selfServerError')) + '</div>'; }
+}
+
+// ============================================================
+// ⬅️ Phase 3 — التنبيهات والإشعارات (شاشة الموظف)
+//
+// ⛔ صفر Backend جديد — كله على الـops الموجودة في GHIS Phase 1
+//    عبر الـpassthrough الموجود في attendance Code.gs (employeeSelf):
+//    notifBadge · notifications · notificationRead
+// ⛔ صفر تعديل على bridgeCall_ أو أي Backend — الواجهة بتنادي
+//    empSelf_ الموجودة بالحرف (قرار 1A).
+// ⛔ empCode مش مرجع أمني هنا خالص: السيرفر بيستخرج الكود من
+//    resolveSession_(token)، والفلترة كلها سيرفر-سايد.
+//    markNotificationRead_ بيرفض أي id مش موجّه للموظف نفسه.
+// ⛔ Employee Data Window مستقل تمامًا — لو السيرفر رجّع
+//    NO_DATA_AVAILABLE_NOW بنعرضها عبر empErrText_ زي أي شاشة تانية.
+//    صفر bypass · صفر استثناء · صفر استنتاج للنافذة من الواجهة.
+// ⛔ صفر localStorage · صفر CacheService · صفر polling · صفر timers
+//    · صفر Web Push · صفر WhatsApp. مصدر الحقيقة للـBadge هو
+//    الـBackend وبس (بيتعاد جلبه بعد كل قراءة ناجحة).
+// ============================================================
+let empNotifCache_ = null;    // آخر رد notifications (عرض بس)
+let empNotifOpenId_ = null;   // الإشعار المفتوح حاليًا
+
+function setNotifBadge_(n){
+  const el = document.getElementById('notifBadge');
+  if (!el) return;
+  const v = Number(n) || 0;
+  el.textContent = v > 99 ? '99+' : String(v);
+  el.style.display = v > 0 ? 'inline-block' : 'none';
+}
+
+// ⛔ الفشل هنا صامت بالكامل: لو الموظف برّه النطاق أو النافذة مقفولة،
+//    الـBadge مايظهرش — ومابنعرضش خطأ عشان مانكشفش أي حالة سيرفر.
+async function refreshNotifBadge_(){
+  try {
+    const r = await empSelf_('notifBadge');
+    setNotifBadge_(r && r.status === 'ok' ? r.unread : 0);
+  } catch (err) { setNotifBadge_(0); }
+}
+
+async function loadEmpNotifications_(){
+  const el = document.getElementById('empNotifSection');
+  if (!el) return;
+  empNotifOpenId_ = null;
+  el.innerHTML = '<div class="empBox"><h3>التنبيهات والإشعارات</h3><p class="sub">جاري التحميل...</p></div>';
+  try {
+    const r = await empSelf_('notifications');
+    if (r.status !== 'ok') {
+      // ⛔ نفس مسار الرسائل الموجود — out_of_range / location_required /
+      //    NO_DATA_AVAILABLE_NOW / invalid_or_expired_token كلها بتعدّي
+      //    على empErrText_ زي ما هي.
+      el.innerHTML = '<div class="empBox"><h3>التنبيهات والإشعارات</h3>'
+        + '<div class="empNote warn">' + empEsc_(empErrText_(r)) + '</div></div>';
+      return;
+    }
+    empNotifCache_ = r.items || [];
+    renderEmpNotifList_();
+  } catch (err) {
+    el.innerHTML = '<div class="empBox"><h3>التنبيهات والإشعارات</h3>'
+      + '<div class="empNote warn">' + empEsc_(T('err_selfServerError')) + '</div></div>';
+  }
+}
+
+function renderEmpNotifList_(){
+  const el = document.getElementById('empNotifSection');
+  const items = empNotifCache_ || [];
+  let h = '<div class="empBox"><h3>التنبيهات والإشعارات</h3>';
+  if (!items.length) {
+    h += '<p class="sub">مفيش إشعارات جديدة.</p>';
+  } else {
+    items.forEach(n => {
+      const unread = !String(n.readAt || '').trim();
+      h += '<button class="notifItem' + (unread ? ' unread' : '') + '"'
+        + ' onclick="openEmpNotif_(\'' + empEsc_(String(n.id)) + '\')">'
+        + '<span>' + (unread ? '🔴 ' : '') + empEsc_(n.title || '—')
+        + (n.period ? '<br><span class="notifWhen">' + empEsc_(n.period) + '</span>' : '')
+        + '</span>'
+        + '<span class="notifWhen">' + empEsc_(n.showAt || '') + '</span>'
+        + '</button>';
+    });
+  }
+  h += '</div>';
+  el.innerHTML = h;
+  empSetWatermark_();
+}
+
+async function openEmpNotif_(id){
+  const n = (empNotifCache_ || []).find(x => String(x.id) === String(id));
+  if (!n) return;
+  empNotifOpenId_ = String(n.id);
+  const el = document.getElementById('empNotifSection');
+  const keys = String(n.contents || '').split(',').map(x => x.trim()).filter(x => x);
+
+  // ⬅️ التجميع الإلزامي: absence/late/deductions/monthlyClosing كلها
+  //    بتتخدم من empSelf_('report') مرة واحدة بس — مش نداء لكل مفتاح.
+  const needReport = ['absence', 'late', 'deductions', 'monthlyClosing'].some(k => keys.indexOf(k) !== -1);
+  const needProfile = keys.indexOf('profile') !== -1;
+  const needDocs = keys.indexOf('documents') !== -1;
+  // message → صفر طلب بيانات.
+
+  let head = '<button class="notifBack" onclick="renderEmpNotifList_()">‹ رجوع لكل الإشعارات</button>'
+    + '<div class="empBox"><h3>' + empEsc_(n.title || '—') + '</h3>'
+    + '<div class="empRow"><b>الفترة</b><span>' + empEsc_(n.period || '—') + '</span></div>'
+    + '<div class="empRow"><b>تاريخ الإظهار</b><span>' + empEsc_(n.showAt || '—') + '</span></div>';
+  if (keys.indexOf('message') !== -1 && String(n.message || '').trim()) {
+    head += '<div class="notifMsg" style="margin-top:10px">' + empEsc_(n.message) + '</div>';
+  }
+  head += '</div><div id="empNotifDetail"></div>';
+  el.innerHTML = head;
+  empSetWatermark_();
+
+  // ⬅️ تسجيل القراءة — مرة واحدة بس لو لسه مش مقروء. الـBadge بيتعاد
+  //    جلبه من السيرفر بعد النجاح (مصدر الحقيقة Backend، مش الواجهة).
+  if (!String(n.readAt || '').trim()) {
+    try {
+      const rr = await empSelf_('notificationRead', { id: n.id });
+      if (rr && rr.status === 'ok') { n.readAt = 'read'; refreshNotifBadge_(); }
+    } catch (err) { /* القراءة مش حرجة — العرض بيكمل عادي */ }
+  }
+
+  const det = document.getElementById('empNotifDetail');
+  if (!det || empNotifOpenId_ !== String(n.id)) return;
+  if (!needReport && !needProfile && !needDocs) return;
+
+  det.innerHTML = '<p class="sub">جاري تحميل التفاصيل...</p>';
+  try {
+    // ⛔ طلب واحد لكل مصدر بيانات على الأكثر — وبالتوازي.
+    const [prof, docs] = await Promise.all([
+      needProfile ? empSelf_('profile') : Promise.resolve(null),
+      needDocs ? empSelf_('documents') : Promise.resolve(null),
+    ]);
+    if (empNotifOpenId_ !== String(n.id)) return;   // الموظف قفل الإشعار في الوقت ده
+    let h = '';
+
+    if (needProfile) {
+      h += '<div class="empBox"><h3>البيانات الشخصية</h3>';
+      if (!prof || prof.status !== 'ok') {
+        h += '<div class="empNote warn">' + empEsc_(empErrText_(prof || {})) + '</div>';
+      } else {
+        (prof.fields || []).forEach(f => {
+          if (f.key === 'referencePhoto') return;
+          h += '<div class="empRow"><b>' + empEsc_(f.label) + '</b><span>' + empEsc_(f.value || '—') + '</span></div>';
+        });
+        h += '<p class="sub" style="margin-top:10px">للتعديل أو رفع صورة، انزل لقسم "بياناتي" تحت.</p>';
+      }
+      h += '</div>';
+    }
+
+    if (needDocs) {
+      h += '<div class="empBox"><h3>المستندات</h3>';
+      if (!docs || docs.status !== 'ok') {
+        h += '<div class="empNote warn">' + empEsc_(empErrText_(docs || {})) + '</div>';
+      } else {
+        (docs.completed || []).forEach(d => h += '<div class="empRow"><b>' + empEsc_(d) + '</b><span>✅ مكتمل</span></div>');
+        (docs.missing || []).forEach(d => h += '<div class="empRow"><b>' + empEsc_(d) + '</b><span>⚠️ ناقص</span></div>');
+        if (!(docs.completed || []).length && !(docs.missing || []).length) h += '<p class="sub">مفيش مستندات مسجّلة.</p>';
+      }
+      h += '</div>';
+    }
+
+    if (needReport) {
+      // ⬅️ قرار 5B — الإشعار بيحمل اسم فترة نصي بس (period)، والـop
+      //    "report" بيطلب from/to بصيغة yyyy-MM-dd. فبنعرض نفس بلوك
+      //    الفترة الموجود في "بياناتي" بالحرف، مبدئيًا على الشهر
+      //    الحالي، والموظف يضغط. ⛔ صفر تواريخ مخترعة من الواجهة
+      //    وصفر احتمال عرض أرقام فترة غلط.
+      const labels = { absence: 'الغياب', late: 'التأخيرات', deductions: 'الخصومات', monthlyClosing: 'إقفال الشهر' };
+      const wanted = ['absence', 'late', 'deductions', 'monthlyClosing']
+        .filter(k => keys.indexOf(k) !== -1).map(k => labels[k]).join('، ');
+      h += '<div class="empBox"><h3>ملخص الحضور والخصومات</h3>'
+        + '<p class="sub">الإشعار ده بيخص: ' + empEsc_(wanted) + '. اختار الفترة واضغط عرض.</p>'
+        + '<div class="empPeriod"><input type="date" id="empNotifFrom"><input type="date" id="empNotifTo"></div>'
+        + '<button class="secondary" onclick="loadEmpReport_(\'empNotifFrom\',\'empNotifTo\',\'empNotifReportArea\')">عرض الملخص</button>'
+        + '<div id="empNotifReportArea"></div></div>';
+    }
+
+    det.innerHTML = h;
+    if (needReport) {
+      const now = new Date();
+      const p2 = v => String(v).padStart(2, '0');
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      const f = document.getElementById('empNotifFrom');
+      const t = document.getElementById('empNotifTo');
+      if (f) f.value = first.getFullYear() + '-' + p2(first.getMonth() + 1) + '-' + p2(first.getDate());
+      if (t) t.value = now.getFullYear() + '-' + p2(now.getMonth() + 1) + '-' + p2(now.getDate());
+    }
+    empSetWatermark_();
+  } catch (err) {
+    det.innerHTML = '<div class="empNote warn">' + empEsc_(T('err_selfServerError')) + '</div>';
+  }
 }
 
 // ============================================================
@@ -1784,16 +1999,22 @@ function findNearestLocation_(lat, lng){
 
 async function gateProfileTab_(){
   const tab = document.getElementById('tabProfile');
-  if (tab) tab.style.display = 'none';          // ⛔ مخفي افتراضيًا
+  // ⬅️ Phase 3 (قرار 3B) — التبويب بقى ظاهر دايمًا عشان الموظف يوصل
+  // لإشعاراته. ⛔ ده مابيفكّش أي حماية: enforceEmployeeGate_ +
+  // فحص النطاق سيرفر-سايد في employeeSelf (Code.gs) لسه هما الحارس
+  // الوحيد، وأي طلب برّه النطاق بيترفض بـout_of_range وبيتعرض عن
+  // طريق empErrText_ الموجودة. صفر bypass · صفر استثناء.
+  if (tab) tab.style.display = '';
   const c = await getProfileCoords_();
   if (!c) return;
   const near = findNearestLocation_(c.lat, c.lng);   // ⬅️ الدالة الموجودة
   if (!near || near.distance > near.location.radius) return;
   empLastCoords_ = c;
-  // ⛔ Employee Data Window — الأيقونة بتفضل ظاهرة دائمًا بنفس التصميم،
-  // عشان الموظف مايستنتجش من ظهورها/اختفائها إن فيه نافذة زمنية أصلاً.
-  // المنع الحقيقي سيرفر-سايد بالكامل في Code.gs.
-  if (tab) tab.style.display = '';
+  // ⬅️ Phase 3 (قرار 2A) — الـBadge بيتجاب هنا بالظبط: بعد نجاح
+  // اللوجين وبعد ما الإحداثيات تتأكد جوّه النطاق. أي نداء قبل كده
+  // بيرجع location_required من السيرفر لأن employeeSelf بيطلب
+  // lat/lng إلزاميًا. ⛔ طلب واحد · صفر timers · صفر polling.
+  refreshNotifBadge_();
 }
 
 // ⚠️ تبليغ نتيجة المطابقة — رادع لا مانع (المطابقة في المتصفح)
@@ -2153,7 +2374,18 @@ function doSignOut_(){
   const profTab = document.getElementById('tabProfile');
   if (profTab) profTab.style.display = 'none';
   const profView = document.getElementById('empViewProfile');
-  if (profView) profView.innerHTML = '';
+  // ⬅️ Phase 3 — بنفضّي القسمين بدل ما نمسح الحاوية، عشان
+  // empNotifSection/empProfileSection مايتشالوش من الـDOM بعد Sign Out.
+  if (profView) {
+    const ns = document.getElementById('empNotifSection');
+    const ps = document.getElementById('empProfileSection');
+    if (ns) ns.innerHTML = '';
+    if (ps) ps.innerHTML = '';
+    profView.removeAttribute('data-wm');
+  }
+  empNotifCache_ = null;
+  empNotifOpenId_ = null;
+  setNotifBadge_(0);
   checkinBtn.classList.remove('checking');
   checkoutBtn.classList.remove('checking');
   checkinBtn.disabled = false;
