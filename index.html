@@ -348,10 +348,12 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
     <button class="empTab active" id="tabAttendance" onclick="switchEmpTab('attendance')">الحضور</button>
     <button class="empTab" id="tabProfile" onclick="switchEmpTab('profile')">التنبيهات والإشعارات<span class="notifBadge" id="notifBadge"></span></button>
   </div>
-  <!-- ⬅️ Phase 3 — نفس الحاوية (empViewProfile) بنفس الاسم و class="protected"
-       بالحرف. اتقسمت جوّه لقسمين بس: الإشعارات فوق و"بياناتي" تحتها (قرار 4B) —
-       ⛔ صفر حذف لأي منطق قائم، والـwatermark والـblur لسه شغالين على الحاوية كلها. -->
-  <div id="empViewProfile" class="protected" style="display:none"><div id="empNotifSection"></div><div id="empProfileSection"></div></div>
+  <!-- ⬅️ Phase 4 — التبويب بقى للتنبيهات والإشعارات بس. نفس الحاوية
+       (empViewProfile) بنفس الاسم و class="protected" بالحرف، والـwatermark
+       والـblur لسه شغالين عليها. ⛔ قسم "بياناتي" اتشال بالكامل — أي تعديل
+       في بيانات الموظف بيتم من GHIS Admin بس. ⛔ رفع الصورة الشخصية مسار
+       مستقل تمامًا (photoStepOverlay) ولم يُمس. -->
+  <div id="empViewProfile" class="protected" style="display:none"><div id="empNotifSection"></div></div>
   <p class="sub" id="mainSub">لازم تكون جوه نطاق المدرسة عشان يتسجل حضورك أو انصرافك. دوس الزرار المناسب وانت واصل، وسيب المتصفح ياخد إذن الموقع والكاميرا.</p>
 
   <div class="field" id="empCodeField">
@@ -1511,8 +1513,6 @@ function showGreeting(kind, greeting, body){
 // ⛔ صفر منطق أمني هنا. كل المنع سيرفر-سايد (enforceEmployeeGate_
 //    + assertEmployeeCanWrite_). الواجهة عرض بس.
 // ============================================================
-let empProfileCache = null;
-
 const EMP_ATTENDANCE_IDS_ = ['mainSub','empCodeField','actionsRow','statusBox','metaRow','datePill'];
 
 function switchEmpTab(name){
@@ -1523,12 +1523,11 @@ function switchEmpTab(name){
     if (el) el.style.display = (name === 'attendance') ? '' : 'none';
   });
   document.getElementById('empViewProfile').style.display = name === 'profile' ? '' : 'none';
-  // ⬅️ Phase 3 — الإشعارات بتتحمّل كل فتح للتبويب (الحالة بتتغير من الإدارة).
-  // ⛔ "بياناتي" لسه بنفس سلوك الكاش القديم بالحرف — صفر تغيير.
-  if (name === 'profile') {
-    loadEmpNotifications_();
-    if (!empProfileCache) loadEmpProfile_();
-  }
+  // ⬅️ الإشعارات بتتحمّل كل فتح للتبويب (الحالة بتتغير من الإدارة).
+  // ⛔ اسم الـview 'profile' اتساب زي ما هو عمدًا (tabProfile /
+  //    switchEmpTab('profile') / empViewProfile) — صفر تغيير في أي
+  //    اسم داخلي، التغيير في المحتوى بس.
+  if (name === 'profile') loadEmpNotifications_();
 }
 
 async function empSelf_(op, payload){
@@ -1550,9 +1549,10 @@ function empEsc_(s){ return String(s == null ? '' : s)
 function empSetWatermark_(){
   const el = document.getElementById('empViewProfile');
   const code = empCodeInput.value.trim();
-  const name = (empProfileCache && empProfileCache.nameAr) || '';
   const stamp = new Date().toLocaleString('ar-EG');
-  el.setAttribute('data-wm', (code + ' · ' + name + ' · ' + stamp + '\n').repeat(14));
+  // ⬅️ Phase 4 — الاسم كان جاي من empProfileCache اللي اتشالت مع قسم
+  //    "بياناتي". كود الموظف لوحده معرّف فريد وكافٍ للتتبّع.
+  el.setAttribute('data-wm', (code + ' · ' + stamp + '\n').repeat(14));
 }
 
 // ⚠️ خريطة رسائل الخطأ لشاشة الموظف — عرض بحت.
@@ -1569,86 +1569,6 @@ function empErrText_(r){
   if (m === 'NO_DATA_AVAILABLE_NOW')    return T('err_noDataWindow');
   if (m === 'invalid_or_expired_token') return T('err_sessionExpired');
   return T('err_selfServerError');
-}
-
-async function loadEmpProfile_(){
-  const el = document.getElementById('empProfileSection');   // ⬅️ Phase 3 — القسم بدل الحاوية كلها
-  el.innerHTML = '<p class="sub">جاري تحميل بياناتك...</p>';
-  try {
-    const [prof, docs] = await Promise.all([ empSelf_('profile'), empSelf_('documents') ]);
-    if (prof.status !== 'ok') {
-      // ⛔ الرسالة بقت مبنية على سبب الرفض الحقيقي عبر empErrText_.
-      // ⛔ صفر إخفاء للأيقونة · صفر وقت بداية · صفر وقت نهاية · صفر مدة
-      // · صفر Countdown. القرار كله سيرفر-سايد زي ما هو.
-      el.innerHTML = '<div class="empNote warn">' + empEsc_(empErrText_(prof)) + '</div>'; return; }
-    empProfileCache = prof;
-    renderEmpProfile_(prof, docs);
-    empSetWatermark_();
-  } catch (err) {
-    el.innerHTML = '<div class="empNote warn">' + empEsc_(T('err_selfServerError')) + '</div>';
-  }
-}
-
-function renderEmpProfile_(prof, docs){
-  const st = prof.enrollment;
-  const canEdit = (st === 'enrollment_open' || st === 'rejected' || st === 'not_enrolled');
-  let h = '';
-
-  if (st === 'pending') h += '<div class="empNote info">طلبك قيد المراجعة حاليًا. مش هتقدر تعدّل البيانات لحد ما الإدارة تراجعه.</div>';
-  if (st === 'rejected') h += '<div class="empNote warn"><b>تم رفض الطلب.</b> يرجى مراجعة البيانات وإعادة تقديمها بعد تصحيحها.'
-    + (prof.rejectReason ? '<br>السبب: ' + empEsc_(prof.rejectReason) : '') + '</div>';
-  if (st === 'approved') h += '<div class="empNote lock">🔒 بياناتك معتمدة وللاطلاع فقط. لأي تصحيح راجع الموارد البشرية.</div>';
-
-  h += '<div class="empBox"><h3>بياناتي</h3>';
-  (prof.fields || []).forEach(f => {
-    if (f.key === 'referencePhoto') return;
-    if (canEdit && f.editable) {
-      h += '<div class="empField"><label>' + empEsc_(f.label) + (f.required ? ' *' : '') + '</label>'
-         + '<input id="empf_' + empEsc_(f.key) + '" value="' + empEsc_(f.value) + '"></div>';
-    } else {
-      h += '<div class="empRow"><b>' + empEsc_(f.label) + '</b><span>' + empEsc_(f.value || '—') + '</span></div>';
-    }
-  });
-  h += '</div>';
-
-  h += '<div class="empBox"><h3>الصورة الشخصية</h3>';
-  h += prof.hasPhoto ? '<img class="empPhoto" id="empPhotoImg" alt="الصورة">'
-                     : '<div class="empNote warn">مفيش صورة معتمدة بعد.</div>';
-  if (canEdit) h += '<div class="empField" style="margin-top:10px"><label>رفع صورة جديدة للمراجعة</label>'
-    + '<input type="file" id="empPhotoFile" accept="image/*"></div>';
-  h += '</div>';
-
-  if (docs && docs.status === 'ok') {
-    h += '<div class="empBox"><h3>المستندات</h3>';
-    (docs.completed || []).forEach(d => h += '<div class="empRow"><b>' + empEsc_(d) + '</b><span>✅ مكتمل</span></div>');
-    (docs.missing || []).forEach(d => h += '<div class="empRow"><b>' + empEsc_(d) + '</b><span>⚠️ ناقص</span></div>');
-    h += '</div>';
-  }
-
-  if (canEdit) h += '<button onclick="submitEmpProfile_()">إرسال البيانات للمراجعة</button>';
-
-  h += '<div class="empBox"><h3>ملخص الحضور</h3><div class="empPeriod">'
-     + '<input type="date" id="empFrom"><input type="date" id="empTo">'
-     + '</div><button class="secondary" onclick="loadEmpReport_()">عرض الملخص</button>'
-     + '<div id="empReportArea"></div></div>';
-
-  document.getElementById('empProfileSection').innerHTML = h;   // ⬅️ Phase 3 — القسم بدل الحاوية كلها
-}
-
-async function submitEmpProfile_(){
-  const fields = {};
-  (empProfileCache.fields || []).forEach(f => {
-    if (!f.editable || f.key === 'referencePhoto') return;
-    const el = document.getElementById('empf_' + f.key);
-    if (el) fields[f.key] = el.value.trim();
-  });
-  try {
-    const r = await empSelf_('submit', { fields: fields });
-    if (r.status !== 'ok') { alert('❌ ' + (r.userMessage || r.message)); return; }
-    empProfileCache = null;
-    alert('✅ تم إرسال بياناتك للمراجعة.');
-    loadEmpProfile_();
-  } catch (err) { alert('❌ تعذّر الإرسال. حاول تاني.'); }
 }
 
 // ⛔ العرض بالأيام/الدقائق فقط — صفر مبالغ مالية (Whitelist سيرفر-سايد)
@@ -2368,7 +2288,6 @@ function doSignOut_(){
   // 3) تصفير حالة الواجهة المفتوحة
   pendingCheckIn = null;
   activeBtn = null;
-  empProfileCache = null;
   empLastCoords_ = null;
   empLoginState_ = { mustChangePassword:false, hasActivePhoto:false,
                      photoRejected:false, canUploadPhoto:false, faceReview:'' };
@@ -2376,13 +2295,11 @@ function doSignOut_(){
   const profTab = document.getElementById('tabProfile');
   if (profTab) profTab.style.display = 'none';
   const profView = document.getElementById('empViewProfile');
-  // ⬅️ Phase 3 — بنفضّي القسمين بدل ما نمسح الحاوية، عشان
-  // empNotifSection/empProfileSection مايتشالوش من الـDOM بعد Sign Out.
+  // ⬅️ بنفضّي قسم الإشعارات بدل ما نمسح الحاوية، عشان empNotifSection
+  // مايتشالش من الـDOM بعد Sign Out.
   if (profView) {
     const ns = document.getElementById('empNotifSection');
-    const ps = document.getElementById('empProfileSection');
     if (ns) ns.innerHTML = '';
-    if (ps) ps.innerHTML = '';
     profView.removeAttribute('data-wm');
   }
   empNotifCache_ = null;
