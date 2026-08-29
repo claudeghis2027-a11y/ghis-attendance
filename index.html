@@ -2005,16 +2005,18 @@ async function gateProfileTab_(){
   // الوحيد، وأي طلب برّه النطاق بيترفض بـout_of_range وبيتعرض عن
   // طريق empErrText_ الموجودة. صفر bypass · صفر استثناء.
   if (tab) tab.style.display = '';
+  // ⬅️ الـBadge بيتجاب هنا قبل فحص النطاق: الـ3 notification ops
+  // مستثناة من الـGeo Gate سيرفر-سايد (SELF_OPS_NO_GEO_ في
+  // attendance Code.gs)، فالنداء بينجح جوّه المدرسة وبرّاها.
+  // ⛔ طلب واحد بس · صفر timers · صفر polling · صفر localStorage.
+  // ⛔ باقي الـops (profile/documents/report/submit) لسه محكومة
+  //    بالكامل — الاستثناء للإشعارات وبس.
+  refreshNotifBadge_();
   const c = await getProfileCoords_();
   if (!c) return;
   const near = findNearestLocation_(c.lat, c.lng);   // ⬅️ الدالة الموجودة
   if (!near || near.distance > near.location.radius) return;
   empLastCoords_ = c;
-  // ⬅️ Phase 3 (قرار 2A) — الـBadge بيتجاب هنا بالظبط: بعد نجاح
-  // اللوجين وبعد ما الإحداثيات تتأكد جوّه النطاق. أي نداء قبل كده
-  // بيرجع location_required من السيرفر لأن employeeSelf بيطلب
-  // lat/lng إلزاميًا. ⛔ طلب واحد · صفر timers · صفر polling.
-  refreshNotifBadge_();
 }
 
 // ⚠️ تبليغ نتيجة المطابقة — رادع لا مانع (المطابقة في المتصفح)
