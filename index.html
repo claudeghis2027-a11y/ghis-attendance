@@ -75,7 +75,11 @@
     background:#f4f6f8;
     display:flex; direction:ltr; flex-direction:row; align-items:stretch;
     min-height:100dvh;
+    /* ⬅️ sticky بتتعطّل لو أي أب عنده overflow غير visible. .card الأصلية
+       كانت overflow:hidden — التصريح ده بيضمن إن السلسلة نظيفة. */
+    overflow:visible;
   }
+  body.empScreen, body.empScreen .wrap{ overflow:visible; }
   /* ⬅️ Permanent Split — نسبة ثابتة على كل المقاسات:
      Sidebar 32% شمال · Main Content 68% يمين.
      ⛔ صفر Drawer · صفر ☰ · صفر Header علوي · صفر media query تخفيه. */
@@ -2159,7 +2163,12 @@ async function loadEmpNotifications_(){
   const el = document.getElementById('empNotifSection');
   if (!el) return;
   empNotifOpenId_ = null;
-  el.innerHTML = '<div class="empBox"><h3>' + empEsc_(T('nTitle')) + '</h3><p class="sub">' + empEsc_(T('nLoading')) + '</p></div>';
+  // ⬅️ تسريع: لو فيه قائمة اتحمّلت في نفس الجلسة، بنرسمها فورًا بدل
+  //    شاشة "جاري التحميل"، والنداء بيكمل في الخلفية ويعيد الرسم بأحدث
+  //    بيانات. ⛔ مفيش Cache دائم — الطلب بيتبعت في كل مرة، فأي إشعار
+  //    جديد بيظهر. الفرق إن الشاشة مابتفضاش أثناء الانتظار.
+  if (empNotifCache_ && empNotifCache_.length) { try { renderEmpNotifList_(); } catch (e) {} }
+  else el.innerHTML = '<div class="empBox"><h3>' + empEsc_(T('nTitle')) + '</h3><p class="sub">' + empEsc_(T('nLoading')) + '</p></div>';
   try {
     const r = await empSelf_('notifications');
     if (r.status !== 'ok') {
@@ -2172,10 +2181,31 @@ async function loadEmpNotifications_(){
     }
     empNotifCache_ = r.items || [];
     renderEmpNotifList_();
+    markVisibleNotificationsRead_();
   } catch (err) {
     el.innerHTML = '<div class="empBox"><h3>' + empEsc_(T('nTitle')) + '</h3>'
       + '<div class="empNote warn">' + empEsc_(T('err_selfServerError')) + '</div></div>';
   }
+}
+
+// ⬅️ الحل 1: بمجرد ما الموظف يفتح تبويب الإشعارات، الإشعارات الظاهرة
+//    تُعتبر مقروءة — فالرقم مايرجعش يظهر إلا مع إشعار **جديد** فعلاً.
+// ⛔ نداء واحد بس (نفس op notificationRead بقائمة ids) — مش نداء لكل
+//    إشعار. والـop نفسه مستثنى من الـGeo Gate أصلاً فبيشتغل برّه المدرسة.
+// ⛔ صفر حذف وصفر تعديل لبيانات الإشعار — بس عمود "تاريخ القراءة".
+async function markVisibleNotificationsRead_(){
+  try {
+    const ids = (empNotifCache_ || [])
+      .filter(n => !String(n.readAt || '').trim())
+      .map(n => String(n.id));
+    if (!ids.length) return;
+    const r = await empSelf_('notificationRead', { id: ids.join(',') });
+    if (r && r.status === 'ok') {
+      (empNotifCache_ || []).forEach(n => { if (!String(n.readAt || '').trim()) n.readAt = 'read'; });
+      refreshNotifBadge_();
+      if (!empNotifOpenId_) { try { renderEmpNotifList_(); } catch (e) {} }
+    }
+  } catch (err) { /* مش حرج — العرض بيكمل عادي */ }
 }
 
 // ⬅️ خريطة الأيقونة واللون حسب عناصر المحتوى اللي الإدارة اختارتها.
