@@ -62,9 +62,46 @@
     padding:0;
     background:#f4f6f8;            /* محايدة ونظيفة — بدون تدرّجات الهوية */
   }
+  body.empScreen .wrap{ max-width:1100px; }
+  /* ===== تخطيط الـMockup: Sidebar شمال + Main Content يمين =====
+     row-reverse لأن الصفحة RTL — من غيره الـsidebar كان هيروح يمين. */
   body.empScreen #mainCard{
     border:none; border-radius:0; box-shadow:none; padding:0;
     background:#f4f6f8;
+    display:flex; flex-direction:row-reverse; align-items:stretch;
+    min-height:100dvh;
+  }
+  body.empScreen .empHeader{
+    flex:0 0 312px;                 /* = 28.4% من الـMockup */
+    position:sticky; top:0; align-self:flex-start;
+    max-height:100dvh; overflow-y:auto;
+  }
+  body.empScreen .empContent{ flex:1; min-width:0; }
+
+  /* شريط علوي للمنطقة البيضاء — فيه ☰ زي الـMockup (موبايل فقط) */
+  .empTopbar{ display:none; align-items:center; padding:10px 4px 2px; }
+  .empBurger{
+    width:auto; padding:8px; background:none; border:none; box-shadow:none;
+    cursor:pointer; color:#0d2244; line-height:0;
+  }
+  .empBurger svg{ width:28px; height:28px; }
+  .empScrim{
+    display:none; position:fixed; inset:0; background:rgba(8,20,40,.55);
+    z-index:14000;
+  }
+
+  /* ===== أقل من 900px: الـSidebar بيبقى درج منزلق من الشمال ===== */
+  @media (max-width:900px){
+    body.empScreen #mainCard{ display:block; min-height:0; }
+    body.empScreen .empHeader{
+      position:fixed; top:0; left:0; bottom:0; z-index:15000;
+      width:min(312px, 86vw); max-height:none; height:100dvh;
+      transform:translateX(-100%); transition:transform .25s ease;
+      box-shadow:6px 0 26px rgba(0,0,0,.32);
+    }
+    body.empScreen.drawerOpen .empHeader{ transform:translateX(0); }
+    body.empScreen.drawerOpen .empScrim{ display:block; }
+    body.empScreen .empTopbar{ display:flex; }
   }
   body.empScreen #mainCard::before{ display:none; }   /* الشريط الملوّن القديم */
   body.empScreen #datePill,
@@ -503,6 +540,14 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
        عن الهيدر الداكن. ⛔ صفر تغيير في ترتيب العناصر أو الـIDs أو أي
        منطق — الأبناء زي ما هم بالحرف. -->
   <div class="empContent">
+  <!-- ⬅️ شريط ☰ — بيظهر تحت 900px بس لفتح درج الـSidebar. -->
+  <div class="empTopbar">
+    <button class="empBurger" id="empBurgerBtn" type="button" aria-label="فتح القائمة">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+  </div>
   <span class="datepill" id="datePill">—</span>
   <h1 id="mainTitle" style="font-size:17px; margin:6px 0 4px;">تسجيل حضور وانصراف</h1>
   <p class="sub" id="welcomeName" style="display:none"></p>
@@ -543,6 +588,8 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
   </div>
   </div><!-- /.empContent -->
 </div>
+<!-- ⬅️ طبقة تعتيم الدرج — الضغط عليها بيقفله. -->
+<div class="empScrim" id="empScrim"></div>
 
 <p class="foot" id="footNote">لو الزرار مبيشتغلش، اتأكد إن إذن الموقع (Location) والكاميرا مفعّلين للمتصفح من إعدادات الجهاز.<br>مشكلة مستمرة؟ كلم قسم شئون العاملين.</p>
 
@@ -829,6 +876,11 @@ const mainCard = document.getElementById('mainCard');
 //    مجرد كلاس على <body> عشان قواعد body.empScreen تشتغل، وشاشة
 //    اللوجين وتغيير الباسورد يفضلوا بتصميمهم القديم بالحرف.
 function setEmpScreenLayout_(on){ document.body.classList.toggle('empScreen', !!on); }
+
+// ⬅️ درج الـSidebar (تحت 900px) — عرض بحت: كلاس على <body> وبس.
+// ⛔ صفر مساس بـswitchEmpTab أو أي منطق. القفل بعد اختيار بند تنقّل
+//    بيتعمل بمستمع منفصل على الحاوية، مش بتعديل الدالة.
+function setEmpDrawer_(open){ document.body.classList.toggle('drawerOpen', !!open); }
 const loginUser = document.getElementById('loginUser');
 const loginPass = document.getElementById('loginPass');
 
@@ -2651,6 +2703,10 @@ function doSignOut_(){
 }
 
 document.getElementById('signOutBtn').addEventListener('click', doSignOut_);
+// ⬅️ ☰ يفتح الدرج · التعتيم أو اختيار بند تنقّل يقفله.
+document.getElementById('empBurgerBtn').addEventListener('click', () => setEmpDrawer_(true));
+document.getElementById('empScrim').addEventListener('click', () => setEmpDrawer_(false));
+document.getElementById('empTabs').addEventListener('click', () => setEmpDrawer_(false));
 
 // ============================================================
 // ⚠️ Remember Me — استعادة الجلسة عند فتح الصفحة.
