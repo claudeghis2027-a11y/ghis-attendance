@@ -92,9 +92,13 @@
     /* ⬅️ التوزيع: space-between بيوزّع المسافة الفاضية بالتساوي بين
        العناصر السبعة. ⛔ صفر flex-grow — العناصر بأحجامها الطبيعية،
        المسافات بس هي اللي بتكبر وتصغر مع ارتفاع الشاشة. */
-    /* space-evenly: مسافة متساوية قبل أول عنصر وبعد آخر عنصر وبينهم،
-       فمفيش تكدّس فوق ولا فراغ متجمّع قبل Sign Out. */
-    justify-content:space-evenly;
+    /* ⬅️ إصلاح التعارض: margin-top:auto على الصف السفلي كان بيبلع كل
+       المساحة الفاضية، فـjustify-content مابيفضلش ليه حاجة يوزّعها —
+       فالبنود كانت بتتكدّس فوق وفجوة واحدة ضخمة قبل Sign Out.
+       الحل: margin-block:auto على كل الأبناء، فالمساحة بتتقسّم
+       بالتساوي بينهم، وmargin-top:auto على الصف السفلي بيضمن إنه
+       في آخر نقطة فعلية في الشريط. */
+    justify-content:flex-start;
     gap:clamp(10px, 1.6dvh, 22px);          /* حد أدنى بس */
     padding-block:clamp(12px, 2.4dvh, 30px);
   }
@@ -104,9 +108,10 @@
   body.empScreen .empPhotoCard{ margin-top:0; }
   body.empScreen .empPhotoPending{ margin-top:0; }
   /* الخروج + زرار اللغة يفضلوا في القاع مهما كان طول المحتوى */
-  /* الخروج + اللغة في القاع مضمونين، حتى لو عدد الأبناء الظاهرين اتغيّر
-     (empPhotoPending بيظهر ويختفي حسب حالة الصورة). */
-  body.empScreen .empBottomRow{ margin-top:auto; }
+  /* ⬅️ كل بند بياخد نصيب متساوٍ من المساحة الفاضية فوقه وتحته */
+  body.empScreen .empHeader > *{ margin-block:auto; }
+  /* الخروج + اللغة في آخر نقطة فعلية في الشريط — مع صف واحد دايمًا */
+  body.empScreen .empBottomRow{ margin-top:auto; margin-bottom:0; }
   body.empScreen .empSignOut{ margin-top:0; }
 
   body.empScreen .empContent{
@@ -170,7 +175,9 @@
 
     /* المنطقة البيضاء بقت 68% — حشوة أضيق وأزرار أصغر عشان تفضل مقروءة */
     body.empScreen .empContent{ padding:16px 10px 20px; }
-    body.empScreen .empBottomRow{ flex-direction:column; gap:4px; align-items:stretch; }
+    /* ⬅️ الخروج + اللغة في صف واحد دايمًا، حتى على الموبايل. */
+    body.empScreen .empBottomRow{ flex-direction:row; gap:6px; align-items:center; }
+    body.empScreen .empBottomRow .empSignOut{ flex:1; min-width:0; }
     body.empScreen .empLangBtn{ margin-top:0; padding:9px 8px; font-size:12.5px; }
     body.empScreen .action-btn{ padding:13px 12px; font-size:13.5px; border-radius:14px; }
     body.empScreen .notifCard{ padding:12px; gap:10px; }
@@ -260,6 +267,11 @@
     background:rgba(224,165,0,.20); border-inline-start:4px solid #e0a500; color:#ffdf9e;
   }
   .empPhotoPending .pendSub{ display:block; margin-top:3px; font-size:11.5px; font-weight:400; color:#e6c88a; }
+  /* حالة الرفض — أحمر واضح، متميّزة عن "قيد المراجعة" العنبرية */
+  .empPhotoPending.isRejected{
+    background:rgba(224,36,36,.20); border-inline-start-color:#e02424; color:#ffc9c9;
+  }
+  .empPhotoPending.isRejected .pendSub{ color:#f0b3b3; }
 
   /* ===== كروت الإشعارات — مطابقة للـMockup ===== */
   .notifHead{ display:flex; align-items:center; gap:9px; margin:2px 0 12px; flex-wrap:wrap; }
@@ -792,6 +804,14 @@ const LANG = {
     sbPhotoSub: 'رفع صورة جديدة',
     sbPhotoPending: 'الصورة الجديدة قيد المراجعة',
     sbPhotoPendingSub: 'صورتك المعتمدة الحالية هي اللي لسه ظاهرة.',
+    sbPhotoRejected: 'الصورة الجديدة اترفضت',
+    sbPhotoRejectedSub: 'الإدارة رفضت الصورة اللي رفعتها. تقدر ترفع صورة تانية دلوقتي.',
+    phErrPending: 'عندك صورة لسه تحت المراجعة — استنى قرار الإدارة قبل ما ترفع تانية.',
+    phErrNotFound: 'كود الموظف مش موجود. كلّم شئون العاملين.',
+    phErrMissing: 'مفيش صورة اتبعتت. اختار صورة وحاول تاني.',
+    phErrBadImage: 'الملف ده مش صورة صالحة. جرّب صورة JPG أو PNG.',
+    phErrTooBig: 'الصورة كبيرة أوي. جرّب صورة أصغر أو التقطها من الكاميرا مباشرة.',
+    phErrSession: 'الجلسة انتهت. سجّل دخول تاني وحاول مرة أخرى.',
     sbHelloDefault: 'أهلاً بك',
     sbLangToggle: 'EN',
     sbLangAria: 'التبديل إلى الإنجليزية',
@@ -957,6 +977,14 @@ const LANG = {
     sbPhotoSub: 'Upload a new photo',
     sbPhotoPending: 'New photo pending review',
     sbPhotoPendingSub: 'Your currently approved photo is the one still shown.',
+    sbPhotoRejected: 'New photo was rejected',
+    sbPhotoRejectedSub: 'The administration rejected the photo you uploaded. You can upload another one now.',
+    phErrPending: 'You already have a photo under review — wait for the decision before uploading another.',
+    phErrNotFound: 'Employee code not found. Please contact HR.',
+    phErrMissing: 'No photo was sent. Pick a photo and try again.',
+    phErrBadImage: 'That file is not a valid image. Try a JPG or PNG.',
+    phErrTooBig: 'The photo is too large. Try a smaller one or take it directly with the camera.',
+    phErrSession: 'Your session expired. Sign in again and retry.',
     sbHelloDefault: 'Welcome',
     sbLangToggle: 'AR',
     sbLangAria: 'Switch to Arabic',
@@ -1078,9 +1106,8 @@ function applyLanguage(lang){
   setText('sbAttendLabel', 'sbAttendance');
   setText('sbPhotoTitle', 'sbPhotoTitle');
   setText('sbPhotoSub', 'sbPhotoSub');
-  const pendEl = document.getElementById('empPhotoPending');
-  if (pendEl) pendEl.innerHTML = '⏳ ' + T('sbPhotoPending')
-    + '<span class="pendSub">' + T('sbPhotoPendingSub') + '</span>';
+  // الشارة بتتعاد بناءها بحالتها الحالية باللغة الجديدة
+  try{ refreshPhotoControls_(); }catch(e){}
   setText('empLangBtn', 'sbLangToggle');
   const langBtnEl = document.getElementById('empLangBtn');
   if (langBtnEl) langBtnEl.setAttribute('aria-label', T('sbLangAria'));
@@ -2442,14 +2469,58 @@ async function loadEmpAvatar_(){
 
 // ⬅️ حالة زرار التغيير + شارة "قيد المراجعة" — من حالة اللوجين اللي
 //    السيرفر حسبها (canUploadPhoto). صفر منطق صلاحيات في الواجهة.
+// ⬅️ ثلاث حالات: قيد المراجعة · مرفوضة · عادية.
+// ⛔ الحالة كلها محسوبة سيرفر-سايد (canUploadPhoto / photoRejected) —
+//    الواجهة بتعرض بس. صفر Backend جديد.
+function setPhotoBadge_(kind){
+  const pend = document.getElementById('empPhotoPending');
+  if (!pend) return;
+  if (kind === 'pending') {
+    pend.className = 'empPhotoPending';
+    pend.innerHTML = '⏳ ' + T('sbPhotoPending')
+      + '<span class="pendSub">' + T('sbPhotoPendingSub') + '</span>';
+    pend.style.display = '';
+  } else if (kind === 'rejected') {
+    pend.className = 'empPhotoPending isRejected';
+    pend.innerHTML = '❌ ' + T('sbPhotoRejected')
+      + '<span class="pendSub">' + T('sbPhotoRejectedSub') + '</span>';
+    pend.style.display = '';
+  } else {
+    pend.style.display = 'none';
+  }
+}
+
 function refreshPhotoControls_(){
   const btn = document.getElementById('empPhotoBtn');
-  const pend = document.getElementById('empPhotoPending');
   const canUpload = !!empLoginState_.canUploadPhoto;
   if (btn) btn.style.display = canUpload ? '' : 'none';
-  if (pend) pend.style.display = canUpload ? 'none' : '';
+  // ⬅️ الرفض بيظهر حتى لو الموظف عنده صورة معتمدة — ده اللي كان ناقص:
+  //    proceedAfterLogin_ كانت بتعرضه جوّه if(!hasActivePhoto) بس.
+  if (!canUpload)                        setPhotoBadge_('pending');
+  else if (empLoginState_.photoRejected) setPhotoBadge_('rejected');
+  else                                   setPhotoBadge_('none');
 }
 function closePhotoStep_(){ document.getElementById('photoStepOverlay').style.display='none'; }
+
+// ⬅️ ترجمة رموز الخطأ الراجعة من الـBackend. قبل كده كان كله بيتعرض
+//    كرسالة عامة واحدة ("تعذّر الرفع") فالموظف مايعرفش السبب ولا الحل.
+// ⛔ عرض بحت — صفر تغيير في أي رمز أو في الـBackend.
+function photoErrText_(r){
+  if (r && r.userMessage) return r.userMessage;
+  const m = r && r.message;
+  if (m === 'photo_review_pending')      return T('phErrPending');
+  if (m === 'photo_upload_already_used') return T('phErrPending');
+  if (m === 'employee_not_found')        return T('phErrNotFound');
+  if (m === 'missing_photo')             return T('phErrMissing');
+  if (m === 'invalid_or_expired_token')  return T('phErrSession');
+  if (m && /image|format|invalid/i.test(String(m))) return T('phErrBadImage');
+  return T('phUploadFail');
+}
+
+// ⬅️ حد أقصى للحجم المرسل — الصور اللي الضغط بيفشل معاها (HEIC مثلاً،
+//    لأن <img> مابيقراهاش فبنرجع الأصلية كما هي) كانت بتتبعت بحجمها
+//    الكامل فيفشل الطلب من غير رسالة مفهومة. ده سبب "الفشل أحيانًا".
+const EMP_PHOTO_MAX_BYTES_ = 3 * 1024 * 1024;   // ~3MB بعد base64
 
 async function submitEmployeePhoto_(){
   const f = document.getElementById('photoStepFile').files[0];
@@ -2459,20 +2530,27 @@ async function submitEmployeePhoto_(){
   if (!f) { err.textContent=T('phPickFirst'); err.style.display=''; return; }
   btn.disabled = true;
   try {
-    // ⬅️ تصغير/ضغط قبل الرفع — لو فشل بنرجع للأصلية.
-    const b64 = (await resizePhotoFile_(f)) || await new Promise((res,rej)=>{ const r=new FileReader();
-      r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
+    let b64;
+    try {
+      // ⬅️ تصغير/ضغط قبل الرفع — لو فشل بنرجع للأصلية.
+      b64 = (await resizePhotoFile_(f)) || await new Promise((res,rej)=>{ const r=new FileReader();
+        r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
+    } catch (readErr) {
+      err.textContent = T('phErrBadImage'); err.style.display=''; btn.disabled=false; return;
+    }
+    if (!b64) { err.textContent = T('phErrBadImage'); err.style.display=''; btn.disabled=false; return; }
+    if (b64.length > EMP_PHOTO_MAX_BYTES_) {
+      err.textContent = T('phErrTooBig'); err.style.display=''; btn.disabled=false; return;
+    }
     const r = await attApi_({ action:'employeePhotoUpload', photoBase64: b64 });
-    if (r.status !== 'ok') { err.textContent = r.userMessage || T('phUploadFail'); err.style.display=''; btn.disabled=false; return; }
+    if (!r || r.status !== 'ok') { err.textContent = photoErrText_(r); err.style.display=''; btn.disabled=false; return; }
     closePhotoStep_();
     // ⛔ الصورة الجديدة pending — القفل بقى "واحدة تحت المراجعة في المرة".
     empLoginState_.canUploadPhoto = false;
+    empLoginState_.photoRejected = false;   // الرفض القديم انتهى بالرفع الجديد
+    // ⬅️ الشارة مرئية في التبويبين، على عكس statusBox اللي بيختفي في
+    //    تبويب الإشعارات (ضمن EMP_ATTENDANCE_IDS_).
     refreshPhotoControls_();
-    // ⬅️ الشارة في الشريط الجانبي مرئية في التبويبين، على عكس statusBox
-    //    اللي بيختفي في تبويب الإشعارات (ضمن EMP_ATTENDANCE_IDS_).
-    const pendEl2 = document.getElementById('empPhotoPending');
-    if (pendEl2) pendEl2.innerHTML = '⏳ ' + T('sbPhotoPending')
-      + '<span class="pendSub">' + T('sbPhotoPendingSub') + '</span>';
     // ⬅️ إعادة جلب الصورة المعتمدة بدون Refresh كامل. المتوقع إنها ماتتغيرش
     //    دلوقتي (الجديدة لسه pending) — بنأكد الحالة الحقيقية من السيرفر بس.
     loadEmpAvatar_();
