@@ -109,13 +109,14 @@
   body.empScreen .empPhotoCard{ margin-top:0; }
   body.empScreen .empPhotoPending{ margin-top:0; }
   /* الخروج + زرار اللغة يفضلوا في القاع مهما كان طول المحتوى */
-  /* ⬅️ توزيع متساوٍ فعلي: كل بند عنده auto فوق وتحت، ماعدا أول بند
-     (صفر فوق) وآخر بند (صفر تحت). النتيجة: المسافة بين كل بندين
-     متساوية تمامًا من الصورة لحد Sign Out، والصف السفلي ملامس
-     لآخر الشريط — من غير ما تتجمّع المسافة في مكان واحد. */
-  body.empScreen .empHeader > *{ margin-block:auto; }
-  body.empScreen .empHeader > *:first-child{ margin-top:0; }
-  body.empScreen .empBottomRow{ margin-bottom:0; }
+  /* ⬅️ Minimal spacing: مسافة صغيرة ثابتة 6px بين البنود — الهدف منع
+     التكدّس بس، مش التوزيع على كامل الارتفاع.
+     ⛔ صفر space-evenly · صفر space-between · صفر margin-block:auto
+        على كل الأبناء · صفر stretch · صفر تغيير في أي حجم أو خط.
+     ⬅️ margin-top:auto على الصف السفلي **وحده** — عشان ينزل لقاع
+        الشريط، وده الاستخدام الصحيح للـauto margin (عنصر واحد). */
+  body.empScreen .empHeader{ gap:6px; }
+  body.empScreen .empBottomRow{ margin-top:auto; margin-bottom:0; }
   body.empScreen .empSignOut{ margin-top:0; }
 
   body.empScreen .empContent{
@@ -842,6 +843,11 @@ const LANG = {
     nReportFor: (what) => 'الإشعار ده بيخص: ' + what + '. اختار الفترة واضغط عرض.',
     nShowReport: 'عرض الملخص',
     nPickPeriod: 'اختار الفترة الأول.',
+    nReportPeriod: 'الفترة اللي حددتها الإدارة',
+    nReportReadOnly: 'الفترة دي محددة من الإدارة — للعرض فقط.',
+    cAbsenceReport: 'الغياب والخصومات والتأخيرات',
+    rLateOriginal: 'التأخير الأصلي', rLateWaiver: 'دقائق الإعفاء المعتمدة',
+    rLateFinal: 'التأخير النهائي', rDeductFinal: 'الخصم النهائي',
     cAbsence: 'الغياب', cLate: 'التأخيرات', cDeductions: 'الخصومات', cClosing: 'إقفال الشهر',
     // ===== الوقت النسبي =====
     tNow: 'الآن',
@@ -1015,6 +1021,11 @@ const LANG = {
     nReportFor: (what) => 'This notification covers: ' + what + '. Pick a period and tap show.',
     nShowReport: 'Show summary',
     nPickPeriod: 'Pick a period first.',
+    nReportPeriod: 'Period set by the administration',
+    nReportReadOnly: 'This period is set by the administration — view only.',
+    cAbsenceReport: 'Absence, deductions & lateness',
+    rLateOriginal: 'Original lateness', rLateWaiver: 'Approved waiver minutes',
+    rLateFinal: 'Final lateness', rDeductFinal: 'Final deduction',
     cAbsence: 'Absence', cLate: 'Lateness', cDeductions: 'Deductions', cClosing: 'Month closing',
     // ===== Relative time =====
     tNow: 'Just now',
@@ -2098,7 +2109,9 @@ async function loadEmpReport_(fromId, toId, areaId){
       + row(T('rPresent'), s.presentDays, T('rUnitDay'))
       + row(T('rAbsent'), s.absentDays, T('rUnitDay'))
       + row(T('rLateCount'), s.lateCount)
-      + row(T('rLateMins'), s.lateMinutesTotal, T('rUnitMin'))
+      + row(T('rLateOriginal'), (s.lateMinutesOriginal !== undefined ? s.lateMinutesOriginal : s.lateMinutesTotal), T('rUnitMin'))
+      + (s.lateWaiverMinutes ? row(T('rLateWaiver'), s.lateWaiverMinutes, T('rUnitMin')) : '')
+      + (s.lateWaiverMinutes ? row(T('rLateFinal'), s.lateMinutesFinal, T('rUnitMin')) : '')
       + row(T('rEarlyCount'), s.earlyCount)
       + row(T('rEarlyMins'), s.earlyMinutesTotal, T('rUnitMin'))
       + row(T('rNoCheckout'), s.missingCheckoutDays, T('rUnitDay'))
@@ -2258,7 +2271,9 @@ async function openEmpNotif_(id){
 
   // ⬅️ التجميع الإلزامي: absence/late/deductions/monthlyClosing كلها
   //    بتتخدم من empSelf_('report') مرة واحدة بس — مش نداء لكل مفتاح.
-  const needReport = ['absence', 'late', 'deductions', 'monthlyClosing'].some(k => keys.indexOf(k) !== -1);
+  const needReport = ['absence', 'late', 'deductions', 'monthlyClosing', 'absenceReport'].some(k => keys.indexOf(k) !== -1);
+  // ⬅️ فترة حددتها الإدارة => الموظف مايختارش تواريخ نهائيًا.
+  const hasPeriod = !!(n.reportFrom && n.reportTo);
   const needProfile = keys.indexOf('profile') !== -1;
   const needDocs = keys.indexOf('documents') !== -1;
   // message → صفر طلب بيانات.
@@ -2329,18 +2344,29 @@ async function openEmpNotif_(id){
       //    الفترة الموجود في "بياناتي" بالحرف، مبدئيًا على الشهر
       //    الحالي، والموظف يضغط. ⛔ صفر تواريخ مخترعة من الواجهة
       //    وصفر احتمال عرض أرقام فترة غلط.
-      const labels = { absence: T('cAbsence'), late: T('cLate'), deductions: T('cDeductions'), monthlyClosing: T('cClosing') };
-      const wanted = ['absence', 'late', 'deductions', 'monthlyClosing']
+      const labels = { absence: T('cAbsence'), late: T('cLate'), deductions: T('cDeductions'),
+                       monthlyClosing: T('cClosing'), absenceReport: T('cAbsenceReport') };
+      const wanted = ['absence', 'late', 'deductions', 'monthlyClosing', 'absenceReport']
         .filter(k => keys.indexOf(k) !== -1).map(k => labels[k]).join('، ');
       h += '<div class="empBox"><h3>' + empEsc_(T('nReportTitle')) + '</h3>'
         + '<p class="sub">' + empEsc_(T('nReportFor')(wanted)) + '</p>'
-        + '<div class="empPeriod"><input type="date" id="empNotifFrom"><input type="date" id="empNotifTo"></div>'
-        + '<button class="secondary" onclick="loadEmpReport_(\'empNotifFrom\',\'empNotifTo\',\'empNotifReportArea\')">' + empEsc_(T('nShowReport')) + '</button>'
+        // ⛔ صفر Date Picker للموظف لما الإدارة تكون حددت الفترة —
+        //    بتتعرض Read-only والتقرير بيتحمّل عليها تلقائيًا.
+        + (hasPeriod
+            ? '<div class="empRow"><b>' + empEsc_(T('nReportPeriod')) + '</b><span>'
+              + empEsc_(n.reportFrom + ' → ' + n.reportTo) + '</span></div>'
+              + '<p class="sub" style="margin:6px 0 0;font-size:12px">' + empEsc_(T('nReportReadOnly')) + '</p>'
+              + '<input type="hidden" id="empNotifFrom" value="' + empEsc_(n.reportFrom) + '">'
+              + '<input type="hidden" id="empNotifTo" value="' + empEsc_(n.reportTo) + '">'
+            : '<div class="empPeriod"><input type="date" id="empNotifFrom"><input type="date" id="empNotifTo"></div>'
+              + '<button class="secondary" onclick="loadEmpReport_(\'empNotifFrom\',\'empNotifTo\',\'empNotifReportArea\')">' + empEsc_(T('nShowReport')) + '</button>')
         + '<div id="empNotifReportArea"></div></div>';
     }
 
     det.innerHTML = h;
-    if (needReport) {
+    if (needReport && hasPeriod) {
+      loadEmpReport_('empNotifFrom', 'empNotifTo', 'empNotifReportArea');
+    } else if (needReport) {
       const now = new Date();
       const p2 = v => String(v).padStart(2, '0');
       const first = new Date(now.getFullYear(), now.getMonth(), 1);
