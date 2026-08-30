@@ -85,13 +85,35 @@
     position:sticky; top:0; align-self:stretch;
     min-height:100dvh; max-height:100dvh; overflow-y:auto;
     display:flex; flex-direction:column;
+    /* ⬅️ توزيع رأسي نسبي لارتفاع الشاشة بدل الـmargins الثابتة.
+       ⛔ gap بس — صفر flex-grow على أي صورة أو زرار أو حقل، فالأحجام
+          والخطوط زي ما هي بالحرف ومفيش أي تمديد مشوِّه. */
+    justify-content:flex-start;
+    gap:clamp(8px, 2.2dvh, 26px);
+    padding-block:clamp(14px, 3dvh, 34px);
   }
+  /* تصفير الـmargins القديمة عشان ماتتضاعفش مع الـgap الجديد */
+  body.empScreen .empHello{ margin:0; }
+  body.empScreen .empNav{ margin-top:0; }
+  body.empScreen .empPhotoCard{ margin-top:0; }
+  body.empScreen .empPhotoPending{ margin-top:0; }
   /* الخروج + زرار اللغة يفضلوا في القاع مهما كان طول المحتوى */
   body.empScreen .empBottomRow{ margin-top:auto; }
+  body.empScreen .empSignOut{ margin-top:0; }
+
   body.empScreen .empContent{
     flex:1; min-width:0; direction:rtl;
     min-height:100dvh; background:#fff;
+    /* ⬅️ المفتاح: من غير flex مفيش توزيع رأسي أصلاً. */
+    display:flex; flex-direction:column;
   }
+  /* الإشعارات تاخد المتاح مع scroll داخلي بدل ما تمدّ الصفحة كلها */
+  body.empScreen #empViewProfile{ flex:1; min-height:0; overflow-y:auto; }
+  /* سطر الوقت/المسافة ينزل لقاع العمود الأبيض بدل الفراغ تحته */
+  body.empScreen #metaRow{ margin-top:auto; }
+  /* تنفّس متناسب مع الارتفاع — مسافات بس، صفر تغيير في الأحجام */
+  body.empScreen #mainSub{ margin-bottom:clamp(12px, 2.5dvh, 24px); }
+  body.empScreen #actionsRow{ gap:clamp(10px, 1.8dvh, 14px); }
   /* ⬅️ English Mode — المحتوى LTR، والشريط الجانبي يفضل مكانه شمال. */
   body.empScreen.langEn .empContent{ direction:ltr; text-align:left; }
   body.empScreen.langEn .empHeader{ direction:ltr; }
