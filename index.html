@@ -2461,7 +2461,10 @@ async function loadEmpAvatar_(){
   const header = document.getElementById('empHeader');
   const img = document.getElementById('empAvatarImg');
   const fb = document.getElementById('empAvatarFallback');
-  if (header) header.style.display = 'block';
+  // ⬅️ لازم 'flex' مش 'block': القاعدة الأساسية .empHeader{display:none}
+  //    فالـinline إلزامي لإظهاره — و'block' كانت بتلغي flex container
+  //    فيتعطّل flex-direction و justify-content و margin-block:auto كلهم.
+  if (header) header.style.display = 'flex';
   try {
     const r = await empSelf_('photoView');
     // ⬅️ الرد بيحمل حالة الصورة الحالية من السيرفر. ده المصدر الوحيد
@@ -2500,12 +2503,12 @@ function setPhotoBadge_(kind){
     pend.className = 'empPhotoPending';
     pend.innerHTML = '⏳ ' + T('sbPhotoPending')
       + '<span class="pendSub">' + T('sbPhotoPendingSub') + '</span>';
-    pend.style.display = '';
+    pend.style.display = 'block';   // ⬅️ '' كانت بترجّع لـ.empPhotoPending{display:none}
   } else if (kind === 'rejected') {
     pend.className = 'empPhotoPending isRejected';
     pend.innerHTML = '❌ ' + T('sbPhotoRejected')
       + '<span class="pendSub">' + T('sbPhotoRejectedSub') + '</span>';
-    pend.style.display = '';
+    pend.style.display = 'block';   // ⬅️ نفس السبب
   } else {
     pend.className = 'empPhotoPending';
     pend.style.display = 'none';
