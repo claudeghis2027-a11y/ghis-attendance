@@ -2202,7 +2202,9 @@ async function markVisibleNotificationsRead_(){
     const r = await empSelf_('notificationRead', { id: ids.join(',') });
     if (r && r.status === 'ok') {
       (empNotifCache_ || []).forEach(n => { if (!String(n.readAt || '').trim()) n.readAt = 'read'; });
-      refreshNotifBadge_();
+      // ⬅️ N1: العدد معروف يقينًا = 0 بعد نجاح التعليم — فصفر طلب إضافي.
+      //    ⛔ refreshNotifBadge_ اتشالت من هنا بس؛ باقي مواضعها زي ما هي.
+      setNotifBadge_(0);
       if (!empNotifOpenId_) { try { renderEmpNotifList_(); } catch (e) {} }
     }
   } catch (err) { /* مش حرج — العرض بيكمل عادي */ }
@@ -2246,6 +2248,9 @@ function renderEmpNotifList_(){
   const el = document.getElementById('empNotifSection');
   const all = empNotifCache_ || [];
   const unreadCount = all.filter(n => !String(n.readAt || '').trim()).length;
+  // ⬅️ N2: الشارة من readAt الجاي في نفس رد notifications — صفر طلب
+  //    إضافي. ⛔ البيانات حيّة (نفس الرد)، مش Cache.
+  setNotifBadge_(unreadCount);
   const items = all.filter(n => {
     const unread = !String(n.readAt || '').trim();
     return empNotifFilter_ === 'unread' ? unread
@@ -2306,8 +2311,10 @@ async function openEmpNotif_(id){
 
   let head = '<button class="notifBack" onclick="renderEmpNotifList_()">' + empEsc_(T('nBack')) + '</button>'
     + '<div class="empBox"><h3>' + empEsc_(n.title || '—') + '</h3>'
-    + '<div class="empRow"><b>' + empEsc_(T('nPeriod')) + '</b><span>' + empEsc_(n.period || '—') + '</span></div>'
-    + '<div class="empRow"><b>' + empEsc_(T('nShowAt')) + '</b><span>' + empEsc_(n.showAt || '—') + '</span></div>';
+    // ⬅️ N4: صف "تاريخ الإظهار" اتشال من شاشة الموظف.
+    //    ⛔ showAt نفسها لم تُمسّ — لسه بتيجي في الرد وبتُستخدم في الوقت
+    //       النسبي ("منذ كذا")، ومنطق showAt/hideAt في الـBackend زي ما هو.
+    + '<div class="empRow"><b>' + empEsc_(T('nPeriod')) + '</b><span>' + empEsc_(n.period || '—') + '</span></div>';
   if (keys.indexOf('message') !== -1 && String(n.message || '').trim()) {
     head += '<div class="notifMsg" style="margin-top:10px">' + empEsc_(n.message) + '</div>';
   }
