@@ -55,37 +55,91 @@
   }
   .wrap{ width:100%; max-width:440px; margin:0 auto; }
 
+  /* ===== شاشة الموظف: Edge-to-Edge مطابق للـMockup =====
+     ⛔ كل القواعد دي مقيّدة بـbody.empScreen — شاشة اللوجين وتغيير
+        الباسورد ما بتتأثرش نهائيًا. الكلاس بيتحط/بيتشال مع mainCard. */
+  body.empScreen{
+    padding:0;
+    background:#f4f6f8;            /* محايدة ونظيفة — بدون تدرّجات الهوية */
+  }
+  body.empScreen .wrap{ max-width:520px; }
+  body.empScreen #mainCard{
+    border:none; border-radius:0; box-shadow:none; padding:0;
+    background:#f4f6f8; overflow:visible;
+  }
+  body.empScreen #mainCard::before{ display:none; }   /* الشريط الملوّن القديم */
+  body.empScreen #datePill,
+  body.empScreen #mainTitle{ display:none !important; }  /* صفر تكرار عناوين */
+  /* الجزء الأبيض — padding خاص به، مستقل تمامًا عن الهيدر */
+  .empContent{
+    background:#fff; padding:20px 18px 28px; min-height:44vh;
+  }
+  body.empScreen .foot{ padding:0 18px; }
+
 /* ===== هيدر الموظف (Mobile-first) — مطابق للـMockup المعتمد =====
      لوحة داكنة فيها صورة الموظف + الترحيب + شارة الدور + كارت تغيير
      الصورة. ⛔ بدون لوجو المدرسة · بدون اسم المدرسة · بدون كود الموظف. */
   .empHeader{
-    display:none; background:linear-gradient(160deg,#0f2748 0%,#132f57 100%);
-    border-radius:16px; padding:20px 16px 16px; margin:0 0 16px; text-align:center;
+    display:none; background:linear-gradient(168deg,#0c2143 0%,#15325e 100%);
+    padding:34px 20px 26px; margin:0; border-radius:0; text-align:center;
   }
   .empAvatarWrap{ display:inline-block; position:relative; }
   .empAvatar, .empAvatarFallback{
-    width:104px; height:104px; border-radius:50%; display:block;
-    border:4px solid rgba(255,255,255,.92); box-shadow:0 4px 18px rgba(0,0,0,.28); background:#e8edf1;
+    /* Responsive حقيقي: 150px @360 · 164px @390 · 181px @430 */
+    width:clamp(150px, 42vw, 190px); height:clamp(150px, 42vw, 190px);
+    border-radius:50%; display:block;
+    border:5px solid rgba(255,255,255,.94); box-shadow:0 6px 26px rgba(0,0,0,.32); background:#e8edf1;
   }
   .empAvatar{ object-fit:cover; }
   .empAvatarFallback{ display:flex; align-items:center; justify-content:center; color:#9aa8b8; }
-  .empAvatarFallback svg{ width:56px; height:56px; }
-  .empHello{ font-size:19px; font-weight:800; color:#fff; margin:14px 0 10px; }
+  .empAvatarFallback svg{ width:clamp(74px, 21vw, 94px); height:clamp(74px, 21vw, 94px); }
+  .empHello{ font-size:clamp(21px, 5.9vw, 25px); font-weight:800; color:#fff; margin:22px 0 14px; }
   .empRoleChip{
-    display:inline-flex; align-items:center; gap:7px; padding:7px 16px;
-    border:1px solid rgba(255,255,255,.28); border-radius:22px;
-    font-size:13px; font-weight:700; color:#dfe7f2; background:rgba(255,255,255,.06);
+    display:inline-flex; align-items:center; gap:8px; padding:10px 20px;
+    border:1px solid rgba(255,255,255,.30); border-radius:24px;
+    font-size:14px; font-weight:700; color:#e3ebf6; background:rgba(255,255,255,.07);
   }
-  .empRoleChip svg{ width:15px; height:15px; }
+  .empRoleChip svg{ width:17px; height:17px; }
+  /* ===== بنود التنقّل داخل العمود الأزرق — مطابقة للـMockup =====
+     نفس أزرار التبويب القديمة بنفس الـIDs و onclick بالحرف، بشكل جديد. */
+  .empNav{ display:flex; flex-direction:column; gap:11px; margin-top:26px; }
+  .empNavItem{
+    display:flex; align-items:center; gap:13px; width:100%;
+    padding:18px 16px; border-radius:14px; cursor:pointer;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.10);
+    color:#cfdcee; font-family:inherit; font-size:15.5px; font-weight:700;
+    text-align:start; box-shadow:none; transition:background .15s, color .15s;
+  }
+  .empNavItem:hover:not(:disabled){ background:rgba(255,255,255,.10); }
+  .empNavItem.active{
+    background:#1d4ed8; border-color:#1d4ed8; color:#fff;
+    box-shadow:0 3px 12px rgba(29,78,216,.4);
+  }
+  .empNavItem .navIcon{ width:26px; height:26px; flex:0 0 auto; }
+  .empNavItem .navLabel{ flex:1; min-width:0; }
+  .empNavBadge{
+    display:none; min-width:27px; height:27px; line-height:27px; padding:0 8px;
+    border-radius:14px; background:#e02424; color:#fff;
+    font-size:13.5px; font-weight:800; text-align:center; flex:0 0 auto;
+  }
+  .empSignOut{
+    display:flex; align-items:center; gap:10px; width:100%;
+    margin-top:20px; padding:16px 14px 4px; border-radius:12px; cursor:pointer;
+    background:none; border:none; border-top:1px solid rgba(255,255,255,.13); box-shadow:none;
+    color:#a8bad4; font-family:inherit; font-size:14px; font-weight:700; text-align:start;
+  }
+  .empSignOut:hover:not(:disabled){ background:rgba(255,255,255,.07); color:#fff; }
+  .empSignOut svg{ width:21px; height:21px; }
+
   .empPhotoCard{
-    display:block; width:100%; margin-top:16px; padding:14px 12px;
+    display:block; width:100%; margin-top:34px; padding:24px 14px;
     background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16);
-    border-radius:12px; cursor:pointer; font-family:inherit; text-align:center; box-shadow:none;
+    border-radius:14px; cursor:pointer; font-family:inherit; text-align:center; box-shadow:none;
   }
   .empPhotoCard:hover:not(:disabled){ background:rgba(255,255,255,.11); }
-  .empPhotoCard svg{ width:30px; height:30px; color:#8fb4e8; }
-  .empPhotoCardTitle{ font-size:14px; font-weight:800; color:#fff; margin-top:7px; }
-  .empPhotoCardSub{ font-size:12px; color:#a8bad4; margin-top:2px; }
+  .empPhotoCard svg{ width:52px; height:52px; color:#8fb4e8; }
+  .empPhotoCardTitle{ font-size:16px; font-weight:800; color:#fff; margin-top:12px; }
+  .empPhotoCardSub{ font-size:13px; color:#a8bad4; margin-top:4px; }
   .empPhotoPending{
     display:none; margin-top:12px; font-size:12.5px; line-height:1.7; text-align:start;
     padding:9px 12px; border-radius:10px;
@@ -106,14 +160,14 @@
   }
   .notifCard{
     position:relative; background:#fff; border:1px solid #e6ebef; border-radius:14px;
-    padding:14px 14px 14px 14px; margin-bottom:12px; box-shadow:0 1px 3px rgba(16,32,56,.05);
-    display:flex; gap:12px; align-items:flex-start;
+    padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(16,32,56,.05);
+    display:flex; gap:14px; align-items:flex-start;
   }
   .notifIcon{
-    flex:0 0 auto; width:52px; height:52px; border-radius:50%;
+    flex:0 0 auto; width:58px; height:58px; border-radius:50%;
     display:flex; align-items:center; justify-content:center;
   }
-  .notifIcon svg{ width:26px; height:26px; }
+  .notifIcon svg{ width:29px; height:29px; }
   .notifBody{ flex:1; min-width:0; }
   .notifTitle{ font-size:15.5px; font-weight:800; color:#16233a; margin:0 0 5px; padding-inline-end:14px; }
   .notifText{ font-size:13.5px; line-height:1.75; color:#5b6b7c; margin:0 0 10px; white-space:pre-wrap; }
@@ -390,10 +444,6 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
 </div>
 
 <div class="card" id="mainCard" style="display:none;">
-  <span class="datepill" id="datePill">—</span>
-  <h1 id="mainTitle">تسجيل الحضور والانصراف</h1>
-  <p class="sub" id="welcomeName" style="display:none; font-weight:700; color:var(--green); margin-bottom:8px;"></p>
-
   <!-- ⬅️ هيدر الموظف: صورته الشخصية المعتمدة + زرار تغييرها.
        ⛔ الصورة بتتجاب من op جديد photoView اللي بيرجّع العمود 13
           (المعتمدة) بس — الصورة الـpending مابتتعرضش أبدًا. -->
@@ -413,6 +463,25 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
       </svg>
       موظف
     </span>
+    <!-- ⬅️ بنود التنقّل — نفس الـIDs (tabProfile / tabAttendance) ونفس
+         onclick="switchEmpTab(...)" بالحرف. ⛔ صفر تغيير في منطق التنقّل
+         أو في أي كود حضور/انصراف — الشكل بس هو اللي اتغيّر. -->
+    <div class="empNav" id="empTabs">
+      <button class="empNavItem" id="tabProfile" onclick="switchEmpTab('profile')">
+        <svg class="navIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 15.5V10a6 6 0 1 0-12 0v5.5L4.5 18h15z"/><path d="M10 20.5h4"/>
+        </svg>
+        <span class="navLabel">التنبيهات والإشعارات</span>
+        <span class="empNavBadge" id="notifBadge"></span>
+      </button>
+      <button class="empNavItem active" id="tabAttendance" onclick="switchEmpTab('attendance')">
+        <svg class="navIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.8"/>
+        </svg>
+        <span class="navLabel">تسجيل حضور وانصراف</span>
+      </button>
+    </div>
+
     <button class="empPhotoCard" id="empPhotoBtn" onclick="openPhotoStep_('change')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="6.5" width="18" height="13" rx="2.5"/><circle cx="11" cy="13" r="3"/>
@@ -422,12 +491,21 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
       <div class="empPhotoCardSub">رفع صورة جديدة</div>
     </button>
     <div class="empPhotoPending" id="empPhotoPending">صورتك الجديدة قيد مراجعة الإدارة — الصورة المعتمدة الحالية هي اللي ظاهرة.</div>
+    <button class="empSignOut" id="signOutBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M12 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/>
+      </svg>
+      تسجيل الخروج
+    </button>
   </div>
-  <!-- ⬅️ التبويبان — نفس الصفحة، صفر رابط منفصل للموظف -->
-  <div class="empTabs" id="empTabs">
-    <button class="empTab active" id="tabAttendance" onclick="switchEmpTab('attendance')">الحضور</button>
-    <button class="empTab" id="tabProfile" onclick="switchEmpTab('profile')">التنبيهات والإشعارات<span class="notifBadge" id="notifBadge"></span></button>
-  </div>
+  <!-- ⬅️ الجزء الأبيض — غلاف عرضي بحت بياخد الـpadding الخاص به مستقلًا
+       عن الهيدر الداكن. ⛔ صفر تغيير في ترتيب العناصر أو الـIDs أو أي
+       منطق — الأبناء زي ما هم بالحرف. -->
+  <div class="empContent">
+  <span class="datepill" id="datePill">—</span>
+  <h1 id="mainTitle" style="font-size:17px; margin:6px 0 4px;">تسجيل حضور وانصراف</h1>
+  <p class="sub" id="welcomeName" style="display:none"></p>
+
   <!-- ⬅️ Phase 4 — التبويب بقى للتنبيهات والإشعارات بس. نفس الحاوية
        (empViewProfile) بنفس الاسم و class="protected" بالحرف، والـwatermark
        والـblur لسه شغالين عليها. ⛔ قسم "بياناتي" اتشال بالكامل — أي تعديل
@@ -462,9 +540,9 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
     <span id="metaTime">--:--</span>
     <span id="metaDist">المسافة: —</span>
   </div>
+  </div><!-- /.empContent -->
 
   <div style="margin-top:14px; text-align:center;">
-    <button id="signOutBtn" type="button" style="background:none; border:none; padding:8px 16px; font-family:'Tajawal', sans-serif; font-size:13.5px; font-weight:700; color:var(--ink-soft); cursor:pointer; border-radius:10px; border:1px solid var(--line);">Sign Out</button>
   </div>
 </div>
 
@@ -749,6 +827,10 @@ if(currentLang){
 
 const loginCard = document.getElementById('loginCard');
 const mainCard = document.getElementById('mainCard');
+// ⬅️ CSS فقط: بيفعّل تخطيط Edge-to-Edge لشاشة الموظف. صفر منطق —
+//    مجرد كلاس على <body> عشان قواعد body.empScreen تشتغل، وشاشة
+//    اللوجين وتغيير الباسورد يفضلوا بتصميمهم القديم بالحرف.
+function setEmpScreenLayout_(on){ document.body.classList.toggle('empScreen', !!on); }
 const loginUser = document.getElementById('loginUser');
 const loginPass = document.getElementById('loginPass');
 
@@ -824,6 +906,7 @@ function handleExpiredSession_(result){
   clearSessionToken_();
   currentSessionToken = null;
   if (mainCard) mainCard.style.display = 'none';
+  setEmpScreenLayout_(false);
   if (loginCard) loginCard.style.display = '';
   loginPass.value = '';
   showLoginError(T('err_sessionExpired'));
@@ -893,6 +976,7 @@ async function doLogin(){
     }
     loginCard.style.display = 'none';
     mainCard.style.display = '';
+    setEmpScreenLayout_(true);
     empCodeInput.value = user;
     currentSessionToken = result.token || null;
     // ⚠️ Remember Me — Session Token بس، ومش بيتحفظ غير لما الموظف
@@ -922,8 +1006,12 @@ async function doLogin(){
     proceedAfterLogin_();
     const name = result.name || "";
     if(name){
-      welcomeName.textContent = T('welcomeName')(name);   // ⬅️ بدون كود الموظف
-      welcomeName.style.display = '';
+      // ⬅️ الترحيب بقى في الهيدر الداكن (empHello) — صفر تكرار عناوين.
+      //    welcomeName اتساب في الـDOM بنفس الـid عشان صفر كسر في أي كود قائم.
+      const helloEl = document.getElementById('empHello');
+      if (helloEl) helloEl.textContent = T('welcomeName')(name);
+      welcomeName.textContent = '';
+      welcomeName.style.display = 'none';
     }else{
       welcomeName.style.display = 'none';
     }
@@ -1590,7 +1678,10 @@ function showGreeting(kind, greeting, body){
 // ⛔ صفر منطق أمني هنا. كل المنع سيرفر-سايد (enforceEmployeeGate_
 //    + assertEmployeeCanWrite_). الواجهة عرض بس.
 // ============================================================
-const EMP_ATTENDANCE_IDS_ = ['mainSub','empCodeField','actionsRow','statusBox','metaRow','datePill'];
+// ⬅️ عناصر شاشة الحضور — بتظهر/تختفي مع التبويب. اتضاف mainTitle و
+//    welcomeName عشان الجزء الأبيض يبقى للإشعارات بس في تبويب الإشعارات،
+//    مطابقةً للـMockup. ⛔ صفر تغيير في منطق الحضور نفسه.
+const EMP_ATTENDANCE_IDS_ = ['mainSub','empCodeField','actionsRow','statusBox','metaRow','datePill','mainTitle'];
 
 function switchEmpTab(name){
   document.getElementById('tabAttendance').classList.toggle('active', name === 'attendance');
@@ -2543,6 +2634,7 @@ function doSignOut_(){
   loginStatus.className = 'status';
   loginStatus.innerHTML = '';
   mainCard.style.display = 'none';
+  setEmpScreenLayout_(false);
   loginCard.style.display = '';
   try{
     const savedCode = localStorage.getItem('ghs_emp_code');
@@ -2577,6 +2669,7 @@ window.addEventListener('load', () => {
   if (langCardEl) langCardEl.style.display = 'none';
   loginCard.style.display = 'none';
   mainCard.style.display = '';
+  setEmpScreenLayout_(true);
   try{
     const savedCode = localStorage.getItem('ghs_emp_code');
     if (savedCode) empCodeInput.value = savedCode;
