@@ -82,15 +82,19 @@
   body.empScreen .empHeader{
     flex:0 0 32%;
     direction:rtl;                  /* ⬅️ الشريط الجانبي عربي التخطيط دايمًا */
-    position:sticky; top:0; align-self:stretch;
-    min-height:100dvh; max-height:100dvh; overflow-y:auto;
+    /* ⬅️ إصلاح: كان min-height:100dvh + align-self:stretch — والـmin-height
+       بتغلب الـmax-height في CSS، فالعمود كان بيمتد لارتفاع #mainCard كله
+       (اللي بيطول مع المحتوى الأبيض) مش لارتفاع الشاشة، فالصف السفلي كان
+       بينزل تحت حدود الشاشة ويسيب فراغ. دلوقتي ارتفاع ثابت = الشاشة. */
+    position:sticky; top:0; align-self:flex-start;
+    height:100dvh; overflow-y:auto;
     display:flex; flex-direction:column;
-    /* ⬅️ توزيع رأسي نسبي لارتفاع الشاشة بدل الـmargins الثابتة.
-       ⛔ gap بس — صفر flex-grow على أي صورة أو زرار أو حقل، فالأحجام
-          والخطوط زي ما هي بالحرف ومفيش أي تمديد مشوِّه. */
-    justify-content:flex-start;
-    gap:clamp(8px, 2.2dvh, 26px);
-    padding-block:clamp(14px, 3dvh, 34px);
+    /* ⬅️ التوزيع: space-between بيوزّع المسافة الفاضية بالتساوي بين
+       العناصر السبعة. ⛔ صفر flex-grow — العناصر بأحجامها الطبيعية،
+       المسافات بس هي اللي بتكبر وتصغر مع ارتفاع الشاشة. */
+    justify-content:space-between;
+    gap:clamp(6px, 1.4dvh, 20px);
+    padding-block:clamp(12px, 2.4dvh, 30px);
   }
   /* تصفير الـmargins القديمة عشان ماتتضاعفش مع الـgap الجديد */
   body.empScreen .empHello{ margin:0; }
@@ -98,7 +102,8 @@
   body.empScreen .empPhotoCard{ margin-top:0; }
   body.empScreen .empPhotoPending{ margin-top:0; }
   /* الخروج + زرار اللغة يفضلوا في القاع مهما كان طول المحتوى */
-  body.empScreen .empBottomRow{ margin-top:auto; }
+  /* ⛔ مفيش margin-top:auto — space-between بيحط الصف السفلي في القاع
+     من غير ما يبلع كل المسافة الفاضية في مكان واحد. */
   body.empScreen .empSignOut{ margin-top:0; }
 
   body.empScreen .empContent{
@@ -138,29 +143,29 @@
       width:min(72px, 18vw); height:min(72px, 18vw); border-width:3px;
     }
     body.empScreen .empAvatarFallback svg{ width:36px; height:36px; }
-    body.empScreen .empHello{ font-size:12.5px; margin:10px 0 7px; line-height:1.5; }
-    body.empScreen .empRoleChip{ padding:4px 8px; font-size:10.5px; gap:4px; border-radius:14px; }
+    body.empScreen .empHello{ font-size:15px; margin:0; line-height:1.5; }
+    body.empScreen .empRoleChip{ padding:6px 10px; font-size:12px; gap:5px; border-radius:14px; }
     body.empScreen .empRoleChip svg{ width:12px; height:12px; }
-    body.empScreen .empNav{ margin-top:12px; gap:7px; }
+    body.empScreen .empNav{ margin-top:0; gap:clamp(6px, 1.2dvh, 11px); }
     body.empScreen .empNavItem{
-      padding:10px 8px; gap:6px; font-size:11px; border-radius:10px; line-height:1.45;
+      padding:12px 9px; gap:7px; font-size:12.5px; border-radius:10px; line-height:1.45;
     }
     body.empScreen .empNavItem .navIcon{ width:18px; height:18px; }
     body.empScreen .empNavBadge{
       min-width:19px; height:19px; line-height:19px; padding:0 5px; font-size:11px; border-radius:10px;
     }
-    body.empScreen .empPhotoCard{ margin-top:16px; padding:12px 8px; border-radius:10px; }
+    body.empScreen .empPhotoCard{ margin-top:0; padding:14px 8px; border-radius:10px; }
     body.empScreen .empPhotoCard svg{ width:26px; height:26px; }
-    body.empScreen .empPhotoCardTitle{ font-size:11px; margin-top:7px; line-height:1.45; }
-    body.empScreen .empPhotoCardSub{ font-size:10px; }
+    body.empScreen .empPhotoCardTitle{ font-size:12.5px; margin-top:7px; line-height:1.45; }
+    body.empScreen .empPhotoCardSub{ font-size:11px; }
     body.empScreen .empPhotoPending{ font-size:10px; padding:5px 7px; line-height:1.5; }
-    body.empScreen .empSignOut{ margin-top:12px; padding:10px 6px 4px; font-size:11.5px; gap:6px; }
+    body.empScreen .empSignOut{ margin-top:0; padding:10px 6px; font-size:12.5px; gap:6px; }
     body.empScreen .empSignOut svg{ width:16px; height:16px; }
 
     /* المنطقة البيضاء بقت 68% — حشوة أضيق وأزرار أصغر عشان تفضل مقروءة */
     body.empScreen .empContent{ padding:16px 10px 20px; }
     body.empScreen .empBottomRow{ flex-direction:column; gap:4px; align-items:stretch; }
-    body.empScreen .empLangBtn{ margin-top:4px; padding:6px 8px; font-size:11px; }
+    body.empScreen .empLangBtn{ margin-top:0; padding:9px 8px; font-size:12.5px; }
     body.empScreen .action-btn{ padding:13px 12px; font-size:13.5px; border-radius:14px; }
     body.empScreen .notifCard{ padding:12px; gap:10px; }
     body.empScreen .notifIcon{ width:42px; height:42px; }
