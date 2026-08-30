@@ -62,7 +62,8 @@
     padding:0;
     background:#f4f6f8;            /* محايدة ونظيفة — بدون تدرّجات الهوية */
   }
-  body.empScreen .wrap{ max-width:1100px; }
+  /* ⬅️ شاشة الموظف Full Width — صفر مساحة رمادية على الجنبين. */
+  body.empScreen .wrap{ max-width:none; }
   /* ===== تخطيط الـMockup: Sidebar شمال + Main Content يمين =====
      ⬅️ direction:ltr على الحاوية بس — بيثبّت المحور فيزيائيًا فيبقى
         أول عنصر في الـDOM (empHeader) على الشمال دايمًا، مهما كان
@@ -80,11 +81,30 @@
      ⛔ صفر Drawer · صفر ☰ · صفر Header علوي · صفر media query تخفيه. */
   body.empScreen .empHeader{
     flex:0 0 32%;
-    direction:rtl;                  /* ⬅️ المحتوى العربي زي ما هو */
-    position:sticky; top:0; align-self:flex-start;
-    max-height:100dvh; overflow-y:auto;
+    direction:rtl;                  /* ⬅️ الشريط الجانبي عربي التخطيط دايمًا */
+    position:sticky; top:0; align-self:stretch;
+    min-height:100dvh; max-height:100dvh; overflow-y:auto;
+    display:flex; flex-direction:column;
   }
-  body.empScreen .empContent{ flex:1; min-width:0; direction:rtl; }
+  /* الخروج + زرار اللغة يفضلوا في القاع مهما كان طول المحتوى */
+  body.empScreen .empBottomRow{ margin-top:auto; }
+  body.empScreen .empContent{
+    flex:1; min-width:0; direction:rtl;
+    min-height:100dvh; background:#fff;
+  }
+  /* ⬅️ English Mode — المحتوى LTR، والشريط الجانبي يفضل مكانه شمال. */
+  body.empScreen.langEn .empContent{ direction:ltr; text-align:left; }
+  body.empScreen.langEn .empHeader{ direction:ltr; }
+
+  .empBottomRow{ display:flex; align-items:center; gap:8px; }
+  .empBottomRow .empSignOut{ flex:1; margin-top:0; }
+  .empLangBtn{
+    flex:0 0 auto; width:auto; padding:7px 12px; margin-top:12px;
+    background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.22);
+    border-radius:9px; color:#dfe7f2; font-family:inherit;
+    font-size:12.5px; font-weight:800; letter-spacing:.5px; cursor:pointer; box-shadow:none;
+  }
+  .empLangBtn:hover:not(:disabled){ background:rgba(255,255,255,.16); color:#fff; }
 
   /* ===== تصغير عناصر الـSidebar على الشاشات الضيقة =====
      32% من 360px = 115px بس، فالمقاسات الكبيرة مستحيل تتحط جواها.
@@ -116,7 +136,9 @@
     body.empScreen .empSignOut svg{ width:16px; height:16px; }
 
     /* المنطقة البيضاء بقت 68% — حشوة أضيق وأزرار أصغر عشان تفضل مقروءة */
-    body.empScreen .empContent{ padding:18px 12px 22px; }
+    body.empScreen .empContent{ padding:16px 10px 20px; }
+    body.empScreen .empBottomRow{ flex-direction:column; gap:4px; align-items:stretch; }
+    body.empScreen .empLangBtn{ margin-top:4px; padding:6px 8px; font-size:11px; }
     body.empScreen .action-btn{ padding:13px 12px; font-size:13.5px; border-radius:14px; }
     body.empScreen .notifCard{ padding:12px; gap:10px; }
     body.empScreen .notifIcon{ width:42px; height:42px; }
@@ -284,7 +306,9 @@ outline:none; transition .15s ease, background .15s ease, box-shadow .15s ease;
 }
 .field input{ border-color:var(--green); background:#fff; box-shadow:0 0 0 4px rgba(0,117,56,0.10); }
 
-.actions{ display:flex; flex-direction: gap:12px; margin-top:4px; }
+/* ⬅️ إصلاح: كان `flex-direction:` من غير قيمة — إعلان تالف بيلغي
+   نفسه وبيلغي gap معاه، فالزرارين كانوا بيتحطوا جنب بعض ومتزنقين. */
+.actions{ display:flex; flex-direction:column; gap:12px; margin-top:4px; }
 .action-btn{
 position:relative;
 width:100%;
@@ -520,7 +544,7 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.4 3.1-5.5 7-5.5s7 2.1 7 5.5"/>
       </svg>
-      موظف
+      <span id="sbRoleLabel">موظف</span>
     </span>
     <!-- ⬅️ بنود التنقّل — نفس الـIDs (tabProfile / tabAttendance) ونفس
          onclick="switchEmpTab(...)" بالحرف. ⛔ صفر تغيير في منطق التنقّل
@@ -530,14 +554,14 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
         <svg class="navIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <path d="M18 15.5V10a6 6 0 1 0-12 0v5.5L4.5 18h15z"/><path d="M10 20.5h4"/>
         </svg>
-        <span class="navLabel">التنبيهات والإشعارات</span>
+        <span class="navLabel" id="sbNotifLabel">التنبيهات والإشعارات</span>
         <span class="empNavBadge" id="notifBadge"></span>
       </button>
       <button class="empNavItem active" id="tabAttendance" onclick="switchEmpTab('attendance')">
         <svg class="navIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.8"/>
         </svg>
-        <span class="navLabel">تسجيل حضور وانصراف</span>
+        <span class="navLabel" id="sbAttendLabel">تسجيل حضور وانصراف</span>
       </button>
     </div>
 
@@ -546,16 +570,21 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
         <rect x="3" y="6.5" width="18" height="13" rx="2.5"/><circle cx="11" cy="13" r="3"/>
         <path d="M8 6.5 9.3 4h4l1.3 2.5"/><path d="M19 15.5v5M16.5 18h5"/>
       </svg>
-      <div class="empPhotoCardTitle">تعديل الصورة الشخصية</div>
-      <div class="empPhotoCardSub">رفع صورة جديدة</div>
+      <div class="empPhotoCardTitle" id="sbPhotoTitle">تعديل الصورة الشخصية</div>
+      <div class="empPhotoCardSub" id="sbPhotoSub">رفع صورة جديدة</div>
     </button>
     <div class="empPhotoPending" id="empPhotoPending">صورتك الجديدة قيد مراجعة الإدارة — الصورة المعتمدة الحالية هي اللي ظاهرة.</div>
-    <button class="empSignOut" id="signOutBtn" type="button">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M12 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/>
-      </svg>
-      تسجيل الخروج
-    </button>
+    <div class="empBottomRow">
+      <button class="empSignOut" id="signOutBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M12 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/>
+        </svg>
+        <span id="signOutLabel">تسجيل الخروج</span>
+      </button>
+      <!-- ⬅️ زرار اللغة — بيعرض اللغة اللي هيروح لها، وبيستخدم
+           applyLanguage() الموجودة بالحرف. صفر نظام لغة جديد. -->
+      <button class="empLangBtn" id="empLangBtn" type="button">EN</button>
+    </div>
   </div>
   <!-- ⬅️ الجزء الأبيض — غلاف عرضي بحت بياخد الـpadding الخاص به مستقلًا
        عن الهيدر الداكن. ⛔ صفر تغيير في ترتيب العناصر أو الـIDs أو أي
@@ -721,6 +750,76 @@ const LANG = {
     err_geoDenied: 'لازم توافق على إذن الموقع عشان تقدر تسجل من هنا.',
     err_geoTimeout: 'الاستجابة اتأخرت، جرب تاني في مكان الإشارة فيه أوضح.',
     err_geoGeneric: 'حصلت مشكلة في تحديد موقعك، جرب تاني.',
+    // ===== الشريط الجانبي =====
+    sbRole: 'موظف',
+    sbNotifications: 'التنبيهات والإشعارات',
+    sbAttendance: 'تسجيل حضور وانصراف',
+    sbPhotoTitle: 'تعديل الصورة الشخصية',
+    sbPhotoSub: 'رفع صورة جديدة',
+    sbPhotoPending: 'صورتك الجديدة قيد مراجعة الإدارة — الصورة المعتمدة الحالية هي اللي ظاهرة.',
+    sbHelloDefault: 'أهلاً بك',
+    sbLangToggle: 'EN',
+    sbLangAria: 'التبديل إلى الإنجليزية',
+    // ===== الإشعارات =====
+    nTitle: 'التنبيهات والإشعارات',
+    nLoading: 'جاري التحميل...',
+    nFilterAll: 'الكل',
+    nFilterUnread: 'غير المقروء',
+    nFilterRead: 'المقروء',
+    nEmpty: 'مفيش إشعارات هنا.',
+    nEnd: 'لا توجد المزيد من الإشعارات',
+    nDetails: 'عرض التفاصيل',
+    nBack: '‹ رجوع لكل الإشعارات',
+    nPeriod: 'الفترة',
+    nShowAt: 'تاريخ الإظهار',
+    nLoadingDetails: 'جاري تحميل التفاصيل...',
+    nProfile: 'البيانات الشخصية',
+    nDocuments: 'المستندات',
+    nDocDone: '✅ مكتمل',
+    nDocMissing: '⚠️ ناقص',
+    nNoDocs: 'مفيش مستندات مسجّلة.',
+    nProfileHint: 'البيانات دي للعرض بس — أي تعديل بيتم من الإدارة.',
+    nReportTitle: 'ملخص الحضور والخصومات',
+    nReportFor: (what) => 'الإشعار ده بيخص: ' + what + '. اختار الفترة واضغط عرض.',
+    nShowReport: 'عرض الملخص',
+    nPickPeriod: 'اختار الفترة الأول.',
+    cAbsence: 'الغياب', cLate: 'التأخيرات', cDeductions: 'الخصومات', cClosing: 'إقفال الشهر',
+    // ===== الوقت النسبي =====
+    tNow: 'الآن',
+    tAgoMin: (n) => 'منذ ' + n + ' دقيقة',
+    tAgoHour: (n) => 'منذ ' + n + (n === 1 ? ' ساعة' : ' ساعات'),
+    tAgoDay: (n) => 'منذ ' + n + (n === 1 ? ' يوم' : ' أيام'),
+    // ===== ملخص التقرير =====
+    rWorkDays: 'أيام العمل المطلوبة', rPresent: 'أيام الحضور', rAbsent: 'أيام الغياب',
+    rLateCount: 'مرات التأخير', rLateMins: 'إجمالي دقائق التأخير',
+    rEarlyCount: 'مرات الانصراف المبكر', rEarlyMins: 'إجمالي دقائق الانصراف المبكر',
+    rNoCheckout: 'أيام بدون بصمة انصراف', rDeduction: 'إجمالي الخصم',
+    rUnitDay: ' يوم', rUnitMin: ' دقيقة',
+    // ===== الصورة =====
+    phChangeTitle: 'تغيير صورتك الشخصية',
+    phInitialTitle: 'محتاجين صورتك الشخصية',
+    phNote: 'الصورة هتتراجع من الإدارة قبل ما تشتغل. لحد ما تتعتمد، صورتك المعتمدة الحالية هي اللي هتفضل شغالة.',
+    phPickFirst: 'اختار صورة الأول.',
+    phUploadFail: 'تعذّر الرفع.',
+    phSentActive: '<b>تم إرسال الصورة للمراجعة</b>صورتك الحالية لسه شغالة وتقدر تسجّل عادي.',
+    phSentNoActive: '<b>تم إرسال الصورة للمراجعة</b>مش هتقدر تسجّل حضور لحد ما الإدارة تعتمدها.',
+    phRejected: 'تم رفض صورتك الشخصية',
+    phPending: 'صورتك قيد المراجعة',
+    phBlockedBody: 'مش هتقدر تسجّل حضور لحد ما الإدارة تعتمد صورة مرجعية ليك. برجاء مراجعة الموارد البشرية.',
+    // ===== كلمة المرور والاتصال =====
+    pwTooShort: 'كلمة المرور لازم تكون 8 حروف على الأقل.',
+    pwMismatch: 'التأكيد مش مطابق.',
+    pwWeak: 'كلمة المرور ضعيفة.',
+    pwDefault: 'مينفعش تستخدم كلمة المرور الافتراضية.',
+    pwAlready: 'كلمة المرور متغيّرة بالفعل.',
+    pwFail: 'تعذّر التغيير.',
+    netFail: 'تعذّر الاتصال.',
+    camAim: 'وجّه وجهك للكاميرا',
+    distLabel: 'المسافة: ',
+    distUnit: ' م (',
+    // ===== أسماء المواقع =====
+    locNames: { 'الريسيبشن':'الريسيبشن', 'الملعب':'الملعب', 'الكي جي':'الكي جي',
+                'الدور الأول 1':'الدور الأول 1', 'الدور الأول 2':'الدور الأول 2', 'النقطة صفر':'النقطة صفر' },
   },
   en: {
     dir: 'ltr',
@@ -815,6 +914,76 @@ const LANG = {
     err_geoDenied: 'You must allow location permission to check in from here.',
     err_geoTimeout: 'The response took too long, try again where the signal is clearer.',
     err_geoGeneric: 'There was a problem getting your location, try again.',
+    // ===== Sidebar =====
+    sbRole: 'Employee',
+    sbNotifications: 'Notifications',
+    sbAttendance: 'Check In / Check Out',
+    sbPhotoTitle: 'Edit Profile Photo',
+    sbPhotoSub: 'Upload a new photo',
+    sbPhotoPending: 'Your new photo is under review — the currently approved photo is the one shown.',
+    sbHelloDefault: 'Welcome',
+    sbLangToggle: 'AR',
+    sbLangAria: 'Switch to Arabic',
+    // ===== Notifications =====
+    nTitle: 'Notifications',
+    nLoading: 'Loading...',
+    nFilterAll: 'All',
+    nFilterUnread: 'Unread',
+    nFilterRead: 'Read',
+    nEmpty: 'No notifications here.',
+    nEnd: 'No more notifications',
+    nDetails: 'View details',
+    nBack: '‹ Back to all notifications',
+    nPeriod: 'Period',
+    nShowAt: 'Shown on',
+    nLoadingDetails: 'Loading details...',
+    nProfile: 'Personal data',
+    nDocuments: 'Documents',
+    nDocDone: '✅ Complete',
+    nDocMissing: '⚠️ Missing',
+    nNoDocs: 'No documents on record.',
+    nProfileHint: 'This data is view-only — any change is made by the administration.',
+    nReportTitle: 'Attendance & deductions summary',
+    nReportFor: (what) => 'This notification covers: ' + what + '. Pick a period and tap show.',
+    nShowReport: 'Show summary',
+    nPickPeriod: 'Pick a period first.',
+    cAbsence: 'Absence', cLate: 'Lateness', cDeductions: 'Deductions', cClosing: 'Month closing',
+    // ===== Relative time =====
+    tNow: 'Just now',
+    tAgoMin: (n) => n + ' min ago',
+    tAgoHour: (n) => n + (n === 1 ? ' hour ago' : ' hours ago'),
+    tAgoDay: (n) => n + (n === 1 ? ' day ago' : ' days ago'),
+    // ===== Report summary =====
+    rWorkDays: 'Required work days', rPresent: 'Days present', rAbsent: 'Days absent',
+    rLateCount: 'Late occurrences', rLateMins: 'Total late minutes',
+    rEarlyCount: 'Early leave occurrences', rEarlyMins: 'Total early-leave minutes',
+    rNoCheckout: 'Days without check-out', rDeduction: 'Total deduction',
+    rUnitDay: ' day(s)', rUnitMin: ' min',
+    // ===== Photo =====
+    phChangeTitle: 'Change your profile photo',
+    phInitialTitle: 'We need your profile photo',
+    phNote: 'The photo is reviewed by the administration before it becomes active. Until it is approved, your current approved photo stays in use.',
+    phPickFirst: 'Pick a photo first.',
+    phUploadFail: 'Upload failed.',
+    phSentActive: '<b>Photo sent for review</b>Your current photo is still active and you can check in normally.',
+    phSentNoActive: '<b>Photo sent for review</b>You cannot check in until the administration approves it.',
+    phRejected: 'Your profile photo was rejected',
+    phPending: 'Your photo is under review',
+    phBlockedBody: 'You cannot check in until the administration approves a reference photo for you. Please contact HR.',
+    // ===== Password & network =====
+    pwTooShort: 'Password must be at least 8 characters.',
+    pwMismatch: 'Confirmation does not match.',
+    pwWeak: 'Password is too weak.',
+    pwDefault: 'You cannot use the default password.',
+    pwAlready: 'Password has already been changed.',
+    pwFail: 'Could not change the password.',
+    netFail: 'Connection failed.',
+    camAim: 'Face the camera',
+    distLabel: 'Distance: ',
+    distUnit: ' m (',
+    // ===== Location names =====
+    locNames: { 'الريسيبشن':'Reception', 'الملعب':'Playground', 'الكي جي':'KG',
+                'الدور الأول 1':'First Floor 1', 'الدور الأول 2':'First Floor 2', 'النقطة صفر':'Zero Point' },
   },
 };
 
@@ -823,6 +992,12 @@ try{ currentLang = localStorage.getItem('ghs_lang'); }catch(e){}
 if(currentLang !== 'ar' && currentLang !== 'en') currentLang = null;
 
 function T(key){ return LANG[currentLang || 'ar'][key]; }
+// ⬅️ اسم الموقع معروض بلغة الواجهة. ⛔ الاسم الأصلي (المفتاح) هو اللي
+//    بيتبعت للسيرفر زي ما هو — ده عرض بحت.
+function locName_(name){
+  const m = LANG[currentLang || 'ar'].locNames || {};
+  return m[name] || name;
+}
 
 function applyLanguage(lang){
   currentLang = lang;
@@ -858,7 +1033,30 @@ function applyLanguage(lang){
   setText('checkinBtnLabel', 'checkinBtnLabel');
   setText('checkoutBtnLabel', 'checkoutBtnLabel');
   setHtml('footNote', 'footNote');
-  setText('signOutBtn', 'signOutBtnLabel');
+  // ⬅️ إصلاح: كان setText على signOutBtn نفسه، فبيمسح أيقونة الـSVG جوّاه.
+  //    دلوقتي النص في span منفصل والأيقونة محفوظة.
+  setText('signOutLabel', 'signOutBtnLabel');
+  // ⬅️ عناصر الشريط الجانبي — كلها من نفس نظام الترجمة الموجود.
+  setText('sbRoleLabel', 'sbRole');
+  setText('sbNotifLabel', 'sbNotifications');
+  setText('sbAttendLabel', 'sbAttendance');
+  setText('sbPhotoTitle', 'sbPhotoTitle');
+  setText('sbPhotoSub', 'sbPhotoSub');
+  setText('empPhotoPending', 'sbPhotoPending');
+  setText('empLangBtn', 'sbLangToggle');
+  const langBtnEl = document.getElementById('empLangBtn');
+  if (langBtnEl) langBtnEl.setAttribute('aria-label', T('sbLangAria'));
+  // اتجاه المحتوى: عربي RTL · إنجليزي LTR — والشريط يفضل شمال في الحالتين.
+  document.body.classList.toggle('langEn', lang === 'en');
+  // الترحيب: الاسم المحفوظ إن وُجد، وإلا النص الافتراضي باللغة الحالية.
+  const helloEl2 = document.getElementById('empHello');
+  if (helloEl2) {
+    let nm = '';
+    try{ nm = localStorage.getItem(EMP_NAME_KEY_) || ''; }catch(e){}
+    helloEl2.textContent = nm ? T('welcomeName')(nm) : T('sbHelloDefault');
+  }
+  // إعادة رسم قائمة الإشعارات باللغة الجديدة لو كانت معروضة (عرض فقط).
+  try{ if (empNotifCache_ && document.getElementById('empNotifSection').innerHTML) renderEmpNotifList_(); }catch(e){}
   const metaDistEl = document.getElementById('metaDist');
   if(metaDistEl && !metaDistEl.dataset.set) metaDistEl.textContent = T('metaDistDefault');
 }
@@ -1069,7 +1267,7 @@ async function doLogin(){
       // ⬅️ الترحيب بقى في الهيدر الداكن (empHello) — صفر تكرار عناوين.
       //    welcomeName اتساب في الـDOM بنفس الـid عشان صفر كسر في أي كود قائم.
       const helloEl = document.getElementById('empHello');
-      if (helloEl) helloEl.textContent = T('welcomeName')(name);
+      if (helloEl) helloEl.textContent = name ? T('welcomeName')(name) : T('sbHelloDefault');
       welcomeName.textContent = '';
       welcomeName.style.display = 'none';
     }else{
@@ -1342,7 +1540,7 @@ function showCameraOverlay_(){
     'z-index:10001;pointer-events:none;color:#fff;font-size:16px;' +
     'font-weight:600;text-align:center;white-space:nowrap;' +
     'text-shadow:0 2px 8px rgba(0,0,0,.8);';
-  hint.textContent = 'وجّه وجهك للكاميرا';
+  hint.textContent = T('camAim');
   document.body.appendChild(ov);
   document.body.appendChild(hint);
 }
@@ -1814,23 +2012,23 @@ async function loadEmpReport_(fromId, toId, areaId){
   const from = document.getElementById(fromId).value;
   const to = document.getElementById(toId).value;
   const area = document.getElementById(areaId);
-  if (!from || !to) { area.innerHTML = '<div class="empNote warn">اختار الفترة الأول.</div>'; return; }
-  area.innerHTML = '<p class="sub">جاري التحميل...</p>';
+  if (!from || !to) { area.innerHTML = '<div class="empNote warn">' + empEsc_(T('nPickPeriod')) + '</div>'; return; }
+  area.innerHTML = '<p class="sub">' + empEsc_(T('nLoading')) + '</p>';
   try {
     const r = await empSelf_('report', { from: from, to: to });
     if (r.status !== 'ok') { area.innerHTML = '<div class="empNote warn">' + empEsc_(empErrText_(r)) + '</div>'; return; }
     const s = r.summary || {};
     const row = (l, v, u) => '<div class="empRow"><b>' + l + '</b><span>' + (v == null ? '—' : v) + (u || '') + '</span></div>';
     area.innerHTML = '<div style="margin-top:10px">'
-      + row('أيام العمل المطلوبة', s.workDaysRequired, ' يوم')
-      + row('أيام الحضور', s.presentDays, ' يوم')
-      + row('أيام الغياب', s.absentDays, ' يوم')
-      + row('مرات التأخير', s.lateCount)
-      + row('إجمالي دقائق التأخير', s.lateMinutesTotal, ' دقيقة')
-      + row('مرات الانصراف المبكر', s.earlyCount)
-      + row('إجمالي دقائق الانصراف المبكر', s.earlyMinutesTotal, ' دقيقة')
-      + row('أيام بدون بصمة انصراف', s.missingCheckoutDays, ' يوم')
-      + row('إجمالي الخصم', s.totalDeduction, ' يوم')
+      + row(T('rWorkDays'), s.workDaysRequired, T('rUnitDay'))
+      + row(T('rPresent'), s.presentDays, T('rUnitDay'))
+      + row(T('rAbsent'), s.absentDays, T('rUnitDay'))
+      + row(T('rLateCount'), s.lateCount)
+      + row(T('rLateMins'), s.lateMinutesTotal, T('rUnitMin'))
+      + row(T('rEarlyCount'), s.earlyCount)
+      + row(T('rEarlyMins'), s.earlyMinutesTotal, T('rUnitMin'))
+      + row(T('rNoCheckout'), s.missingCheckoutDays, T('rUnitDay'))
+      + row(T('rDeduction'), s.totalDeduction, T('rUnitDay'))
       + '</div>';
     empSetWatermark_();
   } catch (err) { area.innerHTML = '<div class="empNote warn">' + empEsc_(T('err_selfServerError')) + '</div>'; }
@@ -1878,21 +2076,21 @@ async function loadEmpNotifications_(){
   const el = document.getElementById('empNotifSection');
   if (!el) return;
   empNotifOpenId_ = null;
-  el.innerHTML = '<div class="empBox"><h3>التنبيهات والإشعارات</h3><p class="sub">جاري التحميل...</p></div>';
+  el.innerHTML = '<div class="empBox"><h3>' + empEsc_(T('nTitle')) + '</h3><p class="sub">' + empEsc_(T('nLoading')) + '</p></div>';
   try {
     const r = await empSelf_('notifications');
     if (r.status !== 'ok') {
       // ⛔ نفس مسار الرسائل الموجود — out_of_range / location_required /
       //    NO_DATA_AVAILABLE_NOW / invalid_or_expired_token كلها بتعدّي
       //    على empErrText_ زي ما هي.
-      el.innerHTML = '<div class="empBox"><h3>التنبيهات والإشعارات</h3>'
+      el.innerHTML = '<div class="empBox"><h3>' + empEsc_(T('nTitle')) + '</h3>'
         + '<div class="empNote warn">' + empEsc_(empErrText_(r)) + '</div></div>';
       return;
     }
     empNotifCache_ = r.items || [];
     renderEmpNotifList_();
   } catch (err) {
-    el.innerHTML = '<div class="empBox"><h3>التنبيهات والإشعارات</h3>'
+    el.innerHTML = '<div class="empBox"><h3>' + empEsc_(T('nTitle')) + '</h3>'
       + '<div class="empNote warn">' + empEsc_(T('err_selfServerError')) + '</div></div>';
   }
 }
@@ -1919,13 +2117,13 @@ function notifRelTime_(showAt){
   if (!m) return String(showAt || '');
   const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
   const mins = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (mins < 1) return 'الآن';
-  if (mins < 60) return 'منذ ' + mins + ' دقيقة';
+  if (mins < 1) return T('tNow');
+  if (mins < 60) return T('tAgoMin')(mins);
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return 'منذ ' + hrs + (hrs === 1 ? ' ساعة' : ' ساعات');
+  if (hrs < 24) return T('tAgoHour')(hrs);
   const days = Math.floor(hrs / 24);
-  if (days < 30) return 'منذ ' + days + (days === 1 ? ' يوم' : ' أيام');
-  return d.toLocaleDateString('ar-EG');
+  if (days < 30) return T('tAgoDay')(days);
+  return d.toLocaleDateString(currentLang === 'en' ? 'en-US' : 'ar-EG');
 }
 
 let empNotifFilter_ = 'all';
@@ -1944,16 +2142,16 @@ function renderEmpNotifList_(){
   let h = '<div class="notifHead">'
     + '<svg class="bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
     + '<path d="M18 15.5V10a6 6 0 1 0-12 0v5.5L4.5 18h15z"/><path d="M10 20.5h4"/></svg>'
-    + '<h3>التنبيهات والإشعارات</h3>'
+    + '<h3>' + empEsc_(T('nTitle')) + '</h3>'
     + (unreadCount ? '<span class="notifHeadCount">' + unreadCount + '</span>' : '')
     + '<select class="notifFilter" onchange="setEmpNotifFilter_(this.value)">'
-    + '<option value="all"' + (empNotifFilter_ === 'all' ? ' selected' : '') + '>الكل</option>'
-    + '<option value="unread"' + (empNotifFilter_ === 'unread' ? ' selected' : '') + '>غير المقروء</option>'
-    + '<option value="read"' + (empNotifFilter_ === 'read' ? ' selected' : '') + '>المقروء</option>'
+    + '<option value="all"' + (empNotifFilter_ === 'all' ? ' selected' : '') + '>' + empEsc_(T('nFilterAll')) + '</option>'
+    + '<option value="unread"' + (empNotifFilter_ === 'unread' ? ' selected' : '') + '>' + empEsc_(T('nFilterUnread')) + '</option>'
+    + '<option value="read"' + (empNotifFilter_ === 'read' ? ' selected' : '') + '>' + empEsc_(T('nFilterRead')) + '</option>'
     + '</select></div>';
 
   if (!items.length) {
-    h += '<p class="notifEnd">مفيش إشعارات هنا.</p>';
+    h += '<p class="notifEnd">' + empEsc_(T('nEmpty')) + '</p>';
   } else {
     items.forEach(n => {
       const unread = !String(n.readAt || '').trim();
@@ -1968,10 +2166,10 @@ function renderEmpNotifList_(){
         + '<p class="notifTitle">' + empEsc_(n.title || '—') + '</p>'
         + (preview ? '<p class="notifText">' + empEsc_(preview) + '</p>' : '')
         + '<div class="notifTime">' + empEsc_(notifRelTime_(n.showAt)) + '</div>'
-        + '<button class="notifCta" style="color:' + st.c + '" onclick="openEmpNotif_(\'' + empEsc_(String(n.id)) + '\')">عرض التفاصيل</button>'
+        + '<button class="notifCta" style="color:' + st.c + '" onclick="openEmpNotif_(\'' + empEsc_(String(n.id)) + '\')">' + empEsc_(T('nDetails')) + '</button>'
         + '</div></div>';
     });
-    h += '<p class="notifEnd">لا توجد المزيد من الإشعارات</p>';
+    h += '<p class="notifEnd">' + empEsc_(T('nEnd')) + '</p>';
   }
   el.innerHTML = h;
   empSetWatermark_();
@@ -1991,10 +2189,10 @@ async function openEmpNotif_(id){
   const needDocs = keys.indexOf('documents') !== -1;
   // message → صفر طلب بيانات.
 
-  let head = '<button class="notifBack" onclick="renderEmpNotifList_()">‹ رجوع لكل الإشعارات</button>'
+  let head = '<button class="notifBack" onclick="renderEmpNotifList_()">' + empEsc_(T('nBack')) + '</button>'
     + '<div class="empBox"><h3>' + empEsc_(n.title || '—') + '</h3>'
-    + '<div class="empRow"><b>الفترة</b><span>' + empEsc_(n.period || '—') + '</span></div>'
-    + '<div class="empRow"><b>تاريخ الإظهار</b><span>' + empEsc_(n.showAt || '—') + '</span></div>';
+    + '<div class="empRow"><b>' + empEsc_(T('nPeriod')) + '</b><span>' + empEsc_(n.period || '—') + '</span></div>'
+    + '<div class="empRow"><b>' + empEsc_(T('nShowAt')) + '</b><span>' + empEsc_(n.showAt || '—') + '</span></div>';
   if (keys.indexOf('message') !== -1 && String(n.message || '').trim()) {
     head += '<div class="notifMsg" style="margin-top:10px">' + empEsc_(n.message) + '</div>';
   }
@@ -2015,7 +2213,7 @@ async function openEmpNotif_(id){
   if (!det || empNotifOpenId_ !== String(n.id)) return;
   if (!needReport && !needProfile && !needDocs) return;
 
-  det.innerHTML = '<p class="sub">جاري تحميل التفاصيل...</p>';
+  det.innerHTML = '<p class="sub">' + empEsc_(T('nLoadingDetails')) + '</p>';
   try {
     // ⛔ طلب واحد لكل مصدر بيانات على الأكثر — وبالتوازي.
     const [prof, docs] = await Promise.all([
@@ -2026,7 +2224,7 @@ async function openEmpNotif_(id){
     let h = '';
 
     if (needProfile) {
-      h += '<div class="empBox"><h3>البيانات الشخصية</h3>';
+      h += '<div class="empBox"><h3>' + empEsc_(T('nProfile')) + '</h3>';
       if (!prof || prof.status !== 'ok') {
         h += '<div class="empNote warn">' + empEsc_(empErrText_(prof || {})) + '</div>';
       } else {
@@ -2034,19 +2232,19 @@ async function openEmpNotif_(id){
           if (f.key === 'referencePhoto') return;
           h += '<div class="empRow"><b>' + empEsc_(f.label) + '</b><span>' + empEsc_(f.value || '—') + '</span></div>';
         });
-        h += '<p class="sub" style="margin-top:10px">للتعديل أو رفع صورة، انزل لقسم "بياناتي" تحت.</p>';
+        h += '<p class="sub" style="margin-top:10px">' + empEsc_(T('nProfileHint')) + '</p>';
       }
       h += '</div>';
     }
 
     if (needDocs) {
-      h += '<div class="empBox"><h3>المستندات</h3>';
+      h += '<div class="empBox"><h3>' + empEsc_(T('nDocuments')) + '</h3>';
       if (!docs || docs.status !== 'ok') {
         h += '<div class="empNote warn">' + empEsc_(empErrText_(docs || {})) + '</div>';
       } else {
-        (docs.completed || []).forEach(d => h += '<div class="empRow"><b>' + empEsc_(d) + '</b><span>✅ مكتمل</span></div>');
-        (docs.missing || []).forEach(d => h += '<div class="empRow"><b>' + empEsc_(d) + '</b><span>⚠️ ناقص</span></div>');
-        if (!(docs.completed || []).length && !(docs.missing || []).length) h += '<p class="sub">مفيش مستندات مسجّلة.</p>';
+        (docs.completed || []).forEach(d => h += '<div class="empRow"><b>' + empEsc_(d) + '</b><span>' + empEsc_(T('nDocDone')) + '</span></div>');
+        (docs.missing || []).forEach(d => h += '<div class="empRow"><b>' + empEsc_(d) + '</b><span>' + empEsc_(T('nDocMissing')) + '</span></div>');
+        if (!(docs.completed || []).length && !(docs.missing || []).length) h += '<p class="sub">' + empEsc_(T('nNoDocs')) + '</p>';
       }
       h += '</div>';
     }
@@ -2057,13 +2255,13 @@ async function openEmpNotif_(id){
       //    الفترة الموجود في "بياناتي" بالحرف، مبدئيًا على الشهر
       //    الحالي، والموظف يضغط. ⛔ صفر تواريخ مخترعة من الواجهة
       //    وصفر احتمال عرض أرقام فترة غلط.
-      const labels = { absence: 'الغياب', late: 'التأخيرات', deductions: 'الخصومات', monthlyClosing: 'إقفال الشهر' };
+      const labels = { absence: T('cAbsence'), late: T('cLate'), deductions: T('cDeductions'), monthlyClosing: T('cClosing') };
       const wanted = ['absence', 'late', 'deductions', 'monthlyClosing']
         .filter(k => keys.indexOf(k) !== -1).map(k => labels[k]).join('، ');
-      h += '<div class="empBox"><h3>ملخص الحضور والخصومات</h3>'
-        + '<p class="sub">الإشعار ده بيخص: ' + empEsc_(wanted) + '. اختار الفترة واضغط عرض.</p>'
+      h += '<div class="empBox"><h3>' + empEsc_(T('nReportTitle')) + '</h3>'
+        + '<p class="sub">' + empEsc_(T('nReportFor')(wanted)) + '</p>'
         + '<div class="empPeriod"><input type="date" id="empNotifFrom"><input type="date" id="empNotifTo"></div>'
-        + '<button class="secondary" onclick="loadEmpReport_(\'empNotifFrom\',\'empNotifTo\',\'empNotifReportArea\')">عرض الملخص</button>'
+        + '<button class="secondary" onclick="loadEmpReport_(\'empNotifFrom\',\'empNotifTo\',\'empNotifReportArea\')">' + empEsc_(T('nShowReport')) + '</button>'
         + '<div id="empNotifReportArea"></div></div>';
     }
 
@@ -2111,15 +2309,15 @@ async function submitForcedPassword_(){
   const err = document.getElementById('fpError');
   const btn = document.getElementById('fpBtn');
   err.style.display = 'none';
-  if (nw.length < 8) { err.textContent = 'كلمة المرور لازم تكون 8 حروف على الأقل.'; err.style.display=''; return; }
-  if (nw !== cf)     { err.textContent = 'التأكيد مش مطابق.'; err.style.display=''; return; }
+  if (nw.length < 8) { err.textContent = T('pwTooShort'); err.style.display=''; return; }
+  if (nw !== cf)     { err.textContent = T('pwMismatch'); err.style.display=''; return; }
   btn.disabled = true;
   try {
     const r = await attApi_({ action:'forcedChangePassword', newPass: nw });
     if (r.status !== 'ok') {
-      const map = { weak_password:'كلمة المرور ضعيفة.', same_as_default:'مينفعش تستخدم كلمة المرور الافتراضية.',
-                    not_required:'كلمة المرور متغيّرة بالفعل.' };
-      err.textContent = map[r.message] || (r.userMessage || 'تعذّر التغيير.');
+      const map = { weak_password:T('pwWeak'), same_as_default:T('pwDefault'),
+                    not_required:T('pwAlready') };
+      err.textContent = map[r.message] || (r.userMessage || T('pwFail'));
       err.style.display=''; btn.disabled=false; return;
     }
     // ⛔ صفر logout — نفس currentSessionToken مستمر
@@ -2132,7 +2330,7 @@ async function submitForcedPassword_(){
     if (r.token && readSessionToken_()) saveSessionToken_(r.token);
     document.getElementById('forcePwOverlay').style.display = 'none';
     proceedAfterLogin_();
-  } catch (e) { err.textContent='تعذّر الاتصال.'; err.style.display=''; btn.disabled=false; }
+  } catch (e) { err.textContent=T('netFail'); err.style.display=''; btn.disabled=false; }
 }
 
 // mode: 'initial' = مطلوبة عشان يقدر يسجّل · 'change' = تغيير اختياري
@@ -2141,8 +2339,8 @@ function openPhotoStep_(mode){
   const note = document.getElementById('photoStepNote');
   const isChange = (mode === 'change');
   document.getElementById('photoStepTitle').textContent =
-    isChange ? 'تغيير صورتك الشخصية' : 'محتاجين صورتك الشخصية';
-  note.textContent = 'الصورة هتتراجع من الإدارة قبل ما تشتغل. لحد ما تتعتمد، صورتك المعتمدة الحالية هي اللي هتفضل شغالة.';
+    isChange ? T('phChangeTitle') : T('phInitialTitle');
+  note.textContent = T('phNote');
   note.style.display = '';
   // ⬅️ زرار "مش دلوقتي" بيظهر في وضع التغيير بس — الرفع الأولي لسه إلزامي.
   document.getElementById('photoStepSkip').style.display = isChange ? '' : 'none';
@@ -2220,14 +2418,14 @@ async function submitEmployeePhoto_(){
   const err = document.getElementById('photoStepError');
   const btn = document.getElementById('photoStepBtn');
   err.style.display='none';
-  if (!f) { err.textContent='اختار صورة الأول.'; err.style.display=''; return; }
+  if (!f) { err.textContent=T('phPickFirst'); err.style.display=''; return; }
   btn.disabled = true;
   try {
     // ⬅️ تصغير/ضغط قبل الرفع — لو فشل بنرجع للأصلية.
     const b64 = (await resizePhotoFile_(f)) || await new Promise((res,rej)=>{ const r=new FileReader();
       r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
     const r = await attApi_({ action:'employeePhotoUpload', photoBase64: b64 });
-    if (r.status !== 'ok') { err.textContent = r.userMessage || 'تعذّر الرفع.'; err.style.display=''; btn.disabled=false; return; }
+    if (r.status !== 'ok') { err.textContent = r.userMessage || T('phUploadFail'); err.style.display=''; btn.disabled=false; return; }
     closePhotoStep_();
     // ⛔ الصورة الجديدة pending — القفل بقى "واحدة تحت المراجعة في المرة".
     empLoginState_.canUploadPhoto = false;
@@ -2236,11 +2434,9 @@ async function submitEmployeePhoto_(){
     //    دلوقتي (الجديدة لسه pending) — بنأكد الحالة الحقيقية من السيرفر بس.
     loadEmpAvatar_();
     statusBox.className = 'status show neutral';
-    statusBox.innerHTML = r.hadActive
-      ? '<b>تم إرسال الصورة للمراجعة</b>صورتك الحالية لسه شغالة وتقدر تسجّل عادي.'
-      : '<b>تم إرسال الصورة للمراجعة</b>مش هتقدر تسجّل حضور لحد ما الإدارة تعتمدها.';
+    statusBox.innerHTML = r.hadActive ? T('phSentActive') : T('phSentNoActive');
     btn.disabled=false;
-  } catch (e) { err.textContent='تعذّر الاتصال.'; err.style.display=''; btn.disabled=false; }
+  } catch (e) { err.textContent=T('netFail'); err.style.display=''; btn.disabled=false; }
 }
 
 // بيتنادى بعد Login وبعد تغيير الباسورد الإجباري
@@ -2255,9 +2451,8 @@ function proceedAfterLogin_(){
   if (empLoginState_.canUploadPhoto && !empLoginState_.hasActivePhoto) { openPhotoStep_('initial'); return; }
   if (!empLoginState_.hasActivePhoto) {
     statusBox.className = 'status show warn';
-    statusBox.innerHTML = '<b>' + (empLoginState_.photoRejected
-        ? 'تم رفض صورتك الشخصية' : 'صورتك قيد المراجعة')
-      + '</b>مش هتقدر تسجّل حضور لحد ما الإدارة تعتمد صورة مرجعية ليك. برجاء مراجعة الموارد البشرية.';
+    statusBox.innerHTML = '<b>' + (empLoginState_.photoRejected ? T('phRejected') : T('phPending'))
+      + '</b>' + T('phBlockedBody');
   }
 }
 
@@ -2586,7 +2781,7 @@ function handleClick(btn){
         const d = haversineMeters(latitude, longitude, loc.lat, loc.lng);
         if(!best || d < best.distance) best = { distance: d, location: loc };
       }
-      metaDist.textContent = (currentLang === 'en' ? 'Distance: ' : 'المسافة: ') + Math.round(best.distance) + (currentLang === 'en' ? ' m (' : ' م (') + best.location.name + ')';
+      metaDist.textContent = T('distLabel') + Math.round(best.distance) + T('distUnit') + locName_(best.location.name) + ')';
       metaDist.dataset.set = '1';
 
       if(best.distance <= best.location.radius){
@@ -2606,7 +2801,7 @@ function handleClick(btn){
         setChecking(btn, false, label);
         const accNote = accuracy > 50 ? T('accuracyNote') : '';
         showStatus('warn', T('err_outOfRangeTitle'),
-          T('err_outOfRangeBody')(best.location.name, Math.round(best.distance), best.location.radius, accNote));
+          T('err_outOfRangeBody')(locName_(best.location.name), Math.round(best.distance), best.location.radius, accNote));
       }
     },
     (err) => {
@@ -2709,6 +2904,10 @@ function doSignOut_(){
 }
 
 document.getElementById('signOutBtn').addEventListener('click', doSignOut_);
+// ⬅️ تبديل اللغة — بيستخدم applyLanguage() الموجودة بالحرف. صفر نظام جديد.
+document.getElementById('empLangBtn').addEventListener('click', () => {
+  applyLanguage(currentLang === 'en' ? 'ar' : 'en');
+});
 
 // ============================================================
 // ⚠️ Remember Me — استعادة الجلسة عند فتح الصفحة.
@@ -2750,7 +2949,7 @@ window.addEventListener('load', () => {
     //    لو مش موجود، الترحيب الافتراضي "أهلاً بك" بيفضل زي ما هو.
     const savedName = localStorage.getItem(EMP_NAME_KEY_);
     const helloEl = document.getElementById('empHello');
-    if (savedName && helloEl) helloEl.textContent = T('welcomeName')(savedName);
+    if (helloEl) helloEl.textContent = savedName ? T('welcomeName')(savedName) : T('sbHelloDefault');
   }catch(e){}
   gateProfileTab_();   // ⬅️ نفس النداء اللي بعد Login بالحرف
 });
