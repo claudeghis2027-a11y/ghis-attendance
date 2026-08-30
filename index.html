@@ -55,37 +55,82 @@
   }
   .wrap{ width:100%; max-width:440px; margin:0 auto; }
 
-/* ===== هيدر الموظف (Mobile-first) — صورة الموظف + الترحيب ===== */
+/* ===== هيدر الموظف (Mobile-first) — مطابق للـMockup المعتمد =====
+     لوحة داكنة فيها صورة الموظف + الترحيب + شارة الدور + كارت تغيير
+     الصورة. ⛔ بدون لوجو المدرسة · بدون اسم المدرسة · بدون كود الموظف. */
   .empHeader{
-    display:flex; align-items:center; gap:14px;
-    padding:14px 4px 16px; margin-bottom:6px;
-    border-bottom:1px solid #e6ebe8;
+    display:none; background:linear-gradient(160deg,#0f2748 0%,#132f57 100%);
+    border-radius:16px; padding:20px 16px 16px; margin:0 0 16px; text-align:center;
   }
-  .empAvatarWrap{ position:relative; flex:0 0 auto; }
-  .empAvatar{
-    width:76px; height:76px; border-radius:50%; object-fit:cover; display:block;
-    border:3px solid #fff; box-shadow:0 2px 12px rgba(0,0,0,.14); background:#eef2f0;
+  .empAvatarWrap{ display:inline-block; position:relative; }
+  .empAvatar, .empAvatarFallback{
+    width:104px; height:104px; border-radius:50%; display:block;
+    border:4px solid rgba(255,255,255,.92); box-shadow:0 4px 18px rgba(0,0,0,.28); background:#e8edf1;
   }
-  .empAvatarFallback{
-    width:76px; height:76px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-    border:3px solid #fff; box-shadow:0 2px 12px rgba(0,0,0,.14); background:#eef2f0; color:#9aa8a2;
+  .empAvatar{ object-fit:cover; }
+  .empAvatarFallback{ display:flex; align-items:center; justify-content:center; color:#9aa8b8; }
+  .empAvatarFallback svg{ width:56px; height:56px; }
+  .empHello{ font-size:19px; font-weight:800; color:#fff; margin:14px 0 10px; }
+  .empRoleChip{
+    display:inline-flex; align-items:center; gap:7px; padding:7px 16px;
+    border:1px solid rgba(255,255,255,.28); border-radius:22px;
+    font-size:13px; font-weight:700; color:#dfe7f2; background:rgba(255,255,255,.06);
   }
-  .empAvatarFallback svg{ width:42px; height:42px; }
-  .empHeadText{ flex:1; min-width:0; }
-  .empHello{ font-size:17px; font-weight:800; color:var(--blue-deep); margin:0 0 6px; }
-  .empPhotoBtn{
-    display:inline-flex; align-items:center; gap:6px; width:auto;
-    padding:7px 12px; font-size:13px; font-weight:700;
-    background:#eef2f0; color:var(--blue-deep); border:1px solid #d6dedb;
-    border-radius:20px; box-shadow:none; cursor:pointer; font-family:inherit;
+  .empRoleChip svg{ width:15px; height:15px; }
+  .empPhotoCard{
+    display:block; width:100%; margin-top:16px; padding:14px 12px;
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16);
+    border-radius:12px; cursor:pointer; font-family:inherit; text-align:center; box-shadow:none;
   }
-  .empPhotoBtn:hover:not(:disabled){ background:#e3eae7; }
-  .empPhotoBtn svg{ width:15px; height:15px; }
+  .empPhotoCard:hover:not(:disabled){ background:rgba(255,255,255,.11); }
+  .empPhotoCard svg{ width:30px; height:30px; color:#8fb4e8; }
+  .empPhotoCardTitle{ font-size:14px; font-weight:800; color:#fff; margin-top:7px; }
+  .empPhotoCardSub{ font-size:12px; color:#a8bad4; margin-top:2px; }
   .empPhotoPending{
-    display:none; margin-top:7px; font-size:12px; line-height:1.6;
-    padding:6px 10px; border-radius:8px;
-    background:#fff6e5; border-right:3px solid #e0a500; color:#7a5c00;
+    display:none; margin-top:12px; font-size:12.5px; line-height:1.7; text-align:start;
+    padding:9px 12px; border-radius:10px;
+    background:rgba(224,165,0,.14); border-inline-start:3px solid #e0a500; color:#ffd98a;
   }
+
+  /* ===== كروت الإشعارات — مطابقة للـMockup ===== */
+  .notifHead{ display:flex; align-items:center; gap:9px; margin:2px 0 12px; flex-wrap:wrap; }
+  .notifHead h3{ margin:0; font-size:17px; font-weight:800; color:var(--blue-deep); }
+  .notifHead .bell{ width:22px; height:22px; color:var(--blue-deep); flex:0 0 auto; }
+  .notifHeadCount{
+    background:#e02424; color:#fff; font-size:12px; font-weight:800;
+    min-width:22px; height:22px; line-height:22px; border-radius:11px; padding:0 6px; text-align:center;
+  }
+  .notifFilter{
+    margin-inline-start:auto; padding:6px 10px; font-size:12.5px; font-family:inherit;
+    border:1px solid #d9e0e6; border-radius:9px; background:#fff; color:#44544d; width:auto;
+  }
+  .notifCard{
+    position:relative; background:#fff; border:1px solid #e6ebef; border-radius:14px;
+    padding:14px 14px 14px 14px; margin-bottom:12px; box-shadow:0 1px 3px rgba(16,32,56,.05);
+    display:flex; gap:12px; align-items:flex-start;
+  }
+  .notifIcon{
+    flex:0 0 auto; width:52px; height:52px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .notifIcon svg{ width:26px; height:26px; }
+  .notifBody{ flex:1; min-width:0; }
+  .notifTitle{ font-size:15.5px; font-weight:800; color:#16233a; margin:0 0 5px; padding-inline-end:14px; }
+  .notifText{ font-size:13.5px; line-height:1.75; color:#5b6b7c; margin:0 0 10px; white-space:pre-wrap; }
+  .notifTime{ font-size:12px; color:#3b82f6; font-weight:700; margin-bottom:9px; }
+  .notifCta{
+    width:auto; padding:8px 18px; font-size:13px; font-weight:800; font-family:inherit;
+    background:#fff; border:1.5px solid currentColor; border-radius:9px; cursor:pointer; box-shadow:none;
+  }
+  .notifCta:hover:not(:disabled){ filter:brightness(.94); box-shadow:none; }
+  .notifDot{
+    position:absolute; top:14px; inset-inline-end:14px;
+    width:10px; height:10px; border-radius:50%; background:#2563eb;
+  }
+  .notifEnd{ text-align:center; font-size:12.5px; color:#93a1ae; padding:6px 0 2px; }
+  .notifBack{ background:none; border:none; font-family:inherit; font-size:14px; color:var(--green);
+    font-weight:800; cursor:pointer; padding:4px 0; margin-bottom:10px; width:auto; box-shadow:none; }
+  .notifMsg{ white-space:pre-wrap; line-height:1.85; font-size:14px; color:#44544d; }
 
 .card{
 position:relative;
@@ -352,25 +397,31 @@ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); lin
   <!-- ⬅️ هيدر الموظف: صورته الشخصية المعتمدة + زرار تغييرها.
        ⛔ الصورة بتتجاب من op جديد photoView اللي بيرجّع العمود 13
           (المعتمدة) بس — الصورة الـpending مابتتعرضش أبدًا. -->
-  <div class="empHeader" id="empHeader" style="display:none">
+  <div class="empHeader" id="empHeader">
     <div class="empAvatarWrap">
       <img id="empAvatarImg" class="empAvatar" alt="صورتي" style="display:none">
       <div id="empAvatarFallback" class="empAvatarFallback" title="مفيش صورة معتمدة">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>
         </svg>
       </div>
     </div>
-    <div class="empHeadText">
-      <p class="empHello" id="empHello">أهلاً بك</p>
-      <button class="empPhotoBtn" id="empPhotoBtn" onclick="openPhotoStep_('change')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="6.5" width="18" height="13" rx="2"/><circle cx="12" cy="13" r="3.2"/><path d="M8.5 6.5 10 4h4l1.5 2.5"/>
-        </svg>
-        تغيير الصورة الشخصية
-      </button>
-      <div class="empPhotoPending" id="empPhotoPending">صورتك الجديدة قيد مراجعة الإدارة — الصورة المعتمدة الحالية هي اللي ظاهرة.</div>
-    </div>
+    <p class="empHello" id="empHello">أهلاً بك</p>
+    <span class="empRoleChip">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.4 3.1-5.5 7-5.5s7 2.1 7 5.5"/>
+      </svg>
+      موظف
+    </span>
+    <button class="empPhotoCard" id="empPhotoBtn" onclick="openPhotoStep_('change')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="6.5" width="18" height="13" rx="2.5"/><circle cx="11" cy="13" r="3"/>
+        <path d="M8 6.5 9.3 4h4l1.3 2.5"/><path d="M19 15.5v5M16.5 18h5"/>
+      </svg>
+      <div class="empPhotoCardTitle">تعديل الصورة الشخصية</div>
+      <div class="empPhotoCardSub">رفع صورة جديدة</div>
+    </button>
+    <div class="empPhotoPending" id="empPhotoPending">صورتك الجديدة قيد مراجعة الإدارة — الصورة المعتمدة الحالية هي اللي ظاهرة.</div>
   </div>
   <!-- ⬅️ التبويبان — نفس الصفحة، صفر رابط منفصل للموظف -->
   <div class="empTabs" id="empTabs">
@@ -1690,25 +1741,82 @@ async function loadEmpNotifications_(){
   }
 }
 
+// ⬅️ خريطة الأيقونة واللون حسب عناصر المحتوى اللي الإدارة اختارتها.
+// ⛔ عرض بحت — صفر تغيير في أي بيانات أو op جاية من الـBackend.
+const NOTIF_STYLE_ = [
+  { k:'monthlyClosing', c:'#16a34a', bg:'#dcfce7', p:'M20 6 9 17l-5-5' },
+  { k:'documents',      c:'#2563eb', bg:'#dbeafe', p:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4' },
+  { k:'deductions',     c:'#ea8a00', bg:'#ffedd5', p:'M12 8v5M12 16.5v.01M12 3l9 16H3z' },
+  { k:'absence',        c:'#ea8a00', bg:'#ffedd5', p:'M12 8v5M12 16.5v.01M12 3l9 16H3z' },
+  { k:'late',           c:'#7c3aed', bg:'#ede9fe', p:'M12 7v5l3 2M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z' },
+  { k:'profile',        c:'#7c3aed', bg:'#ede9fe', p:'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20c0-3.6 3.1-6 7-6s7 2.4 7 6' },
+];
+function notifStyleFor_(keys){
+  for (const st of NOTIF_STYLE_) if (keys.indexOf(st.k) !== -1) return st;
+  return { c:'#2563eb', bg:'#dbeafe', p:'M18 15.5V10a6 6 0 1 0-12 0v5.5L4.5 18h15zM10 20.5h4' };
+}
+
+// ⬅️ "منذ كذا" — حساب في المتصفح من showAt ("yyyy-MM-dd HH:mm").
+// ⛔ صفر timers · صفر polling — بيتحسب مرة عند الرسم بس.
+function notifRelTime_(showAt){
+  const m = String(showAt || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/);
+  if (!m) return String(showAt || '');
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return 'الآن';
+  if (mins < 60) return 'منذ ' + mins + ' دقيقة';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return 'منذ ' + hrs + (hrs === 1 ? ' ساعة' : ' ساعات');
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return 'منذ ' + days + (days === 1 ? ' يوم' : ' أيام');
+  return d.toLocaleDateString('ar-EG');
+}
+
+let empNotifFilter_ = 'all';
+function setEmpNotifFilter_(v){ empNotifFilter_ = v; renderEmpNotifList_(); }
+
 function renderEmpNotifList_(){
   const el = document.getElementById('empNotifSection');
-  const items = empNotifCache_ || [];
-  let h = '<div class="empBox"><h3>التنبيهات والإشعارات</h3>';
+  const all = empNotifCache_ || [];
+  const unreadCount = all.filter(n => !String(n.readAt || '').trim()).length;
+  const items = all.filter(n => {
+    const unread = !String(n.readAt || '').trim();
+    return empNotifFilter_ === 'unread' ? unread
+         : empNotifFilter_ === 'read' ? !unread : true;
+  });
+
+  let h = '<div class="notifHead">'
+    + '<svg class="bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M18 15.5V10a6 6 0 1 0-12 0v5.5L4.5 18h15z"/><path d="M10 20.5h4"/></svg>'
+    + '<h3>التنبيهات والإشعارات</h3>'
+    + (unreadCount ? '<span class="notifHeadCount">' + unreadCount + '</span>' : '')
+    + '<select class="notifFilter" onchange="setEmpNotifFilter_(this.value)">'
+    + '<option value="all"' + (empNotifFilter_ === 'all' ? ' selected' : '') + '>الكل</option>'
+    + '<option value="unread"' + (empNotifFilter_ === 'unread' ? ' selected' : '') + '>غير المقروء</option>'
+    + '<option value="read"' + (empNotifFilter_ === 'read' ? ' selected' : '') + '>المقروء</option>'
+    + '</select></div>';
+
   if (!items.length) {
-    h += '<p class="sub">مفيش إشعارات جديدة.</p>';
+    h += '<p class="notifEnd">مفيش إشعارات هنا.</p>';
   } else {
     items.forEach(n => {
       const unread = !String(n.readAt || '').trim();
-      h += '<button class="notifItem' + (unread ? ' unread' : '') + '"'
-        + ' onclick="openEmpNotif_(\'' + empEsc_(String(n.id)) + '\')">'
-        + '<span>' + (unread ? '🔴 ' : '') + empEsc_(n.title || '—')
-        + (n.period ? '<br><span class="notifWhen">' + empEsc_(n.period) + '</span>' : '')
-        + '</span>'
-        + '<span class="notifWhen">' + empEsc_(n.showAt || '') + '</span>'
-        + '</button>';
+      const keys = String(n.contents || '').split(',').map(x => x.trim()).filter(x => x);
+      const st = notifStyleFor_(keys);
+      const preview = String(n.message || '').trim();
+      h += '<div class="notifCard">'
+        + (unread ? '<span class="notifDot"></span>' : '')
+        + '<span class="notifIcon" style="background:' + st.bg + ';color:' + st.c + '">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="' + st.p + '"/></svg>'
+        + '</span><div class="notifBody">'
+        + '<p class="notifTitle">' + empEsc_(n.title || '—') + '</p>'
+        + (preview ? '<p class="notifText">' + empEsc_(preview) + '</p>' : '')
+        + '<div class="notifTime">' + empEsc_(notifRelTime_(n.showAt)) + '</div>'
+        + '<button class="notifCta" style="color:' + st.c + '" onclick="openEmpNotif_(\'' + empEsc_(String(n.id)) + '\')">عرض التفاصيل</button>'
+        + '</div></div>';
     });
+    h += '<p class="notifEnd">لا توجد المزيد من الإشعارات</p>';
   }
-  h += '</div>';
   el.innerHTML = h;
   empSetWatermark_();
 }
@@ -1925,7 +2033,7 @@ async function loadEmpAvatar_(){
   const header = document.getElementById('empHeader');
   const img = document.getElementById('empAvatarImg');
   const fb = document.getElementById('empAvatarFallback');
-  if (header) header.style.display = '';
+  if (header) header.style.display = 'block';
   try {
     const r = await empSelf_('photoView');
     if (r && r.status === 'ok' && r.file && r.file.base64) {
