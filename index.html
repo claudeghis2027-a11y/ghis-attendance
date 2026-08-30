@@ -104,10 +104,6 @@
     padding-block:clamp(12px, 2.4dvh, 30px);
   }
   /* تصفير الـmargins القديمة عشان ماتتضاعفش مع الـgap الجديد */
-  body.empScreen .empHello{ margin:0; }
-  body.empScreen .empNav{ margin-top:0; }
-  body.empScreen .empPhotoCard{ margin-top:0; }
-  body.empScreen .empPhotoPending{ margin-top:0; }
   /* الخروج + زرار اللغة يفضلوا في القاع مهما كان طول المحتوى */
   /* ⬅️ Minimal spacing: مسافة صغيرة ثابتة 6px بين البنود — الهدف منع
      التكدّس بس، مش التوزيع على كامل الارتفاع.
@@ -116,8 +112,8 @@
      ⬅️ margin-top:auto على الصف السفلي **وحده** — عشان ينزل لقاع
         الشريط، وده الاستخدام الصحيح للـauto margin (عنصر واحد). */
   body.empScreen .empHeader{ gap:6px; }
+  /* ⬅️ الصف السفلي وحده هو اللي بيتدفع لآخر الشريط. */
   body.empScreen .empBottomRow{ margin-top:auto; margin-bottom:0; }
-  body.empScreen .empSignOut{ margin-top:0; }
 
   body.empScreen .empContent{
     flex:1; min-width:0; direction:rtl;
@@ -137,9 +133,9 @@
   body.empScreen.langEn .empHeader{ direction:ltr; }
 
   .empBottomRow{ display:flex; align-items:center; gap:8px; }
-  .empBottomRow .empSignOut{ flex:1; margin-top:0; }
+  .empBottomRow .empSignOut{ flex:1; }
   .empLangBtn{
-    flex:0 0 auto; width:auto; padding:7px 12px; margin-top:12px;
+    flex:0 0 auto; width:auto; padding:7px 12px;
     background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.22);
     border-radius:9px; color:#dfe7f2; font-family:inherit;
     font-size:12.5px; font-weight:800; letter-spacing:.5px; cursor:pointer; box-shadow:none;
@@ -158,10 +154,10 @@
       width:min(72px, 18vw); height:min(72px, 18vw); border-width:3px;
     }
     body.empScreen .empAvatarFallback svg{ width:36px; height:36px; }
-    body.empScreen .empHello{ font-size:15px; margin:0; line-height:1.5; }
+    body.empScreen .empHello{ font-size:15px; line-height:1.5; }
     body.empScreen .empRoleChip{ padding:6px 10px; font-size:12px; gap:5px; border-radius:14px; }
     body.empScreen .empRoleChip svg{ width:12px; height:12px; }
-    body.empScreen .empNav{ margin-top:0; gap:clamp(6px, 1.2dvh, 11px); }
+    body.empScreen .empNav{ gap:clamp(6px, 1.2dvh, 11px); }
     body.empScreen .empNavItem{
       padding:12px 9px; gap:7px; font-size:12.5px; border-radius:10px; line-height:1.45;
     }
@@ -169,13 +165,13 @@
     body.empScreen .empNavBadge{
       min-width:19px; height:19px; line-height:19px; padding:0 5px; font-size:11px; border-radius:10px;
     }
-    body.empScreen .empPhotoCard{ margin-top:0; padding:14px 8px; border-radius:10px; }
+    body.empScreen .empPhotoCard{ padding:14px 8px; border-radius:10px; }
     body.empScreen .empPhotoCard svg{ width:26px; height:26px; }
     body.empScreen .empPhotoCardTitle{ font-size:12.5px; margin-top:7px; line-height:1.45; }
     body.empScreen .empPhotoCardSub{ font-size:11px; }
     body.empScreen .empPhotoPending{ font-size:12px; padding:9px 8px; line-height:1.55; }
     body.empScreen .empPhotoPending .pendSub{ font-size:10.5px; }
-    body.empScreen .empSignOut{ margin-top:0; padding:10px 6px; font-size:12.5px; gap:6px; }
+    body.empScreen .empSignOut{ padding:10px 6px; font-size:12.5px; gap:6px; }
     body.empScreen .empSignOut svg{ width:16px; height:16px; }
 
     /* المنطقة البيضاء بقت 68% — حشوة أضيق وأزرار أصغر عشان تفضل مقروءة */
@@ -183,7 +179,7 @@
     /* ⬅️ الخروج + اللغة في صف واحد دايمًا، حتى على الموبايل. */
     body.empScreen .empBottomRow{ flex-direction:row; gap:6px; align-items:center; }
     body.empScreen .empBottomRow .empSignOut{ flex:1; min-width:0; }
-    body.empScreen .empLangBtn{ margin-top:0; padding:9px 8px; font-size:12.5px; }
+    body.empScreen .empLangBtn{ padding:9px 8px; font-size:12.5px; }
     body.empScreen .action-btn{ padding:13px 12px; font-size:13.5px; border-radius:14px; }
     body.empScreen .notifCard{ padding:12px; gap:10px; }
     body.empScreen .notifIcon{ width:42px; height:42px; }
@@ -219,7 +215,7 @@
   .empAvatar{ object-fit:cover; }
   .empAvatarFallback{ display:flex; align-items:center; justify-content:center; color:#9aa8b8; }
   .empAvatarFallback svg{ width:clamp(74px, 21vw, 94px); height:clamp(74px, 21vw, 94px); }
-  .empHello{ font-size:clamp(21px, 5.9vw, 25px); font-weight:800; color:#fff; margin:22px 0 14px; }
+  .empHello{ font-size:clamp(21px, 5.9vw, 25px); font-weight:800; color:#fff; margin:0; }
   .empRoleChip{
     display:inline-flex; align-items:center; gap:8px; padding:10px 20px;
     border:1px solid rgba(255,255,255,.30); border-radius:24px;
@@ -228,7 +224,7 @@
   .empRoleChip svg{ width:17px; height:17px; }
   /* ===== بنود التنقّل داخل العمود الأزرق — مطابقة للـMockup =====
      نفس أزرار التبويب القديمة بنفس الـIDs و onclick بالحرف، بشكل جديد. */
-  .empNav{ display:flex; flex-direction:column; gap:11px; margin-top:26px; }
+  .empNav{ display:flex; flex-direction:column; gap:11px; }
   .empNavItem{
     display:flex; align-items:center; gap:13px; width:100%;
     padding:18px 16px; border-radius:14px; cursor:pointer;
@@ -250,7 +246,7 @@
   }
   .empSignOut{
     display:flex; align-items:center; gap:10px; width:100%;
-    margin-top:20px; padding:16px 14px 4px; border-radius:12px; cursor:pointer;
+    padding:16px 14px 4px; border-radius:12px; cursor:pointer;
     background:none; border:none; border-top:1px solid rgba(255,255,255,.13); box-shadow:none;
     color:#a8bad4; font-family:inherit; font-size:14px; font-weight:700; text-align:start;
   }
@@ -258,7 +254,7 @@
   .empSignOut svg{ width:21px; height:21px; }
 
   .empPhotoCard{
-    display:block; width:100%; margin-top:34px; padding:24px 14px;
+    display:block; width:100%; padding:24px 14px;
     background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16);
     border-radius:14px; cursor:pointer; font-family:inherit; text-align:center; box-shadow:none;
   }
@@ -267,7 +263,7 @@
   .empPhotoCardTitle{ font-size:16px; font-weight:800; color:#fff; margin-top:12px; }
   .empPhotoCardSub{ font-size:13px; color:#a8bad4; margin-top:4px; }
   .empPhotoPending{
-    display:none; margin-top:12px; font-size:13px; font-weight:700; line-height:1.6; text-align:start;
+    display:none; font-size:13px; font-weight:700; line-height:1.6; text-align:start;
     padding:11px 12px; border-radius:10px;
     background:rgba(224,165,0,.20); border-inline-start:4px solid #e0a500; color:#ffdf9e;
   }
