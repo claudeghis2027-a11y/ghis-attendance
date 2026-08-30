@@ -884,6 +884,7 @@ showCpPass.addEventListener('change', () => {
 //    currentSessionToken على طول وبيتستخدم مع الطلبات الموجودة
 //    أصلاً، وصلاحيته بتتأكد من أول رد طبيعي بيرجع من السيرفر.
 // ============================================================
+const EMP_NAME_KEY_ = 'ghs_emp_name';   // ⬅️ اسم الموظف فقط
 const REMEMBER_TOKEN_KEY = 'ghs_session_token';
 
 function saveSessionToken_(token){
@@ -891,6 +892,9 @@ function saveSessionToken_(token){
 }
 function clearSessionToken_(){
   try{ localStorage.removeItem(REMEMBER_TOKEN_KEY); }catch(e){}
+  // ⬅️ اسم الموظف بيتمسح مع بيانات الجلسة دايمًا (خروج / انتهاء جلسة)،
+  //    فموظف تاني على نفس الجهاز مايشوفش اسم اللي قبله.
+  try{ localStorage.removeItem(EMP_NAME_KEY_); }catch(e){}
 }
 function readSessionToken_(){
   try{ return localStorage.getItem(REMEMBER_TOKEN_KEY) || ''; }catch(e){ return ''; }
@@ -1017,6 +1021,11 @@ async function doLogin(){
       // بنحفظ كود الموظف بس، عشان يسهل عليه ملء الخانة تاني —
       // كلمة المرور ما بتتحفظش في المتصفح خالص تحت أي ظرف.
       localStorage.setItem('ghs_emp_code', user);
+      // ⬅️ اسم الموظف بس (result.name) — عشان الترحيب يظهر بعد Refresh
+      //    من غير أي طلب شبكة. ⛔ صفر بيانات تانية: لا Profile ولا مرتب
+      //    ولا مستندات. وبيتمسح مع بيانات الجلسة في clearSessionToken_.
+      if (name) localStorage.setItem(EMP_NAME_KEY_, name);
+      else localStorage.removeItem(EMP_NAME_KEY_);
     }catch(e){}
   }catch(err){
     if(err.name === 'AbortError'){
@@ -2668,9 +2677,22 @@ window.addEventListener('load', () => {
   loginCard.style.display = 'none';
   mainCard.style.display = '';
   setEmpScreenLayout_(true);
+  // ⬅️ إصلاح: المسار ده مابيناديش proceedAfterLogin_ (عمدًا، عشان
+  //    مانعرضش تحذير صورة كاذب)، و.empHeader مخفي افتراضيًا في الـCSS
+  //    وloadEmpAvatar_ هي الوحيدة اللي بتُظهره. من غير النداء ده كان
+  //    الهيدر كله بيختفي بعد Refresh (صورة + اسم + تنقّل + خروج).
+  // ⛔ نداء واحد بس (photoView) — مش proceedAfterLogin_ كاملة، فالتحذير
+  //    الكاذب مايظهرش. والصورة الـpending مابتتعرضش (السيرفر بيرجّع
+  //    العمود 13 المعتمد بس).
+  loadEmpAvatar_();
   try{
     const savedCode = localStorage.getItem('ghs_emp_code');
     if (savedCode) empCodeInput.value = savedCode;
+    // ⬅️ الترحيب باسم الموظف من التخزين المحلي — ⛔ صفر API · صفر fetch.
+    //    لو مش موجود، الترحيب الافتراضي "أهلاً بك" بيفضل زي ما هو.
+    const savedName = localStorage.getItem(EMP_NAME_KEY_);
+    const helloEl = document.getElementById('empHello');
+    if (savedName && helloEl) helloEl.textContent = T('welcomeName')(savedName);
   }catch(e){}
   gateProfileTab_();   // ⬅️ نفس النداء اللي بعد Login بالحرف
 });
