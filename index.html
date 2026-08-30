@@ -64,11 +64,15 @@
   }
   body.empScreen .wrap{ max-width:1100px; }
   /* ===== تخطيط الـMockup: Sidebar شمال + Main Content يمين =====
-     row-reverse لأن الصفحة RTL — من غيره الـsidebar كان هيروح يمين. */
+     ⬅️ direction:ltr على الحاوية بس — بيثبّت المحور فيزيائيًا فيبقى
+        أول عنصر في الـDOM (empHeader) على الشمال دايمًا، مهما كان
+        dir بتاع الصفحة أو تفسير المتصفح.
+     ⛔ مش معتمد على flex-direction المنطقي (row-reverse) اللي بيتقلب
+        مع RTL. المحتوى العربي جوّه الابنين بيرجع rtl تحت. */
   body.empScreen #mainCard{
     border:none; border-radius:0; box-shadow:none; padding:0;
     background:#f4f6f8;
-    display:flex; flex-direction:row-reverse; align-items:stretch;
+    display:flex; direction:ltr; flex-direction:row; align-items:stretch;
     min-height:100dvh;
   }
   /* ⬅️ Permanent Split — نسبة ثابتة على كل المقاسات:
@@ -76,10 +80,11 @@
      ⛔ صفر Drawer · صفر ☰ · صفر Header علوي · صفر media query تخفيه. */
   body.empScreen .empHeader{
     flex:0 0 32%;
+    direction:rtl;                  /* ⬅️ المحتوى العربي زي ما هو */
     position:sticky; top:0; align-self:flex-start;
     max-height:100dvh; overflow-y:auto;
   }
-  body.empScreen .empContent{ flex:1; min-width:0; }
+  body.empScreen .empContent{ flex:1; min-width:0; direction:rtl; }
 
   /* ===== تصغير عناصر الـSidebar على الشاشات الضيقة =====
      32% من 360px = 115px بس، فالمقاسات الكبيرة مستحيل تتحط جواها.
