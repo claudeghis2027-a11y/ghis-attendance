@@ -109,10 +109,13 @@
   body.empScreen .empPhotoCard{ margin-top:0; }
   body.empScreen .empPhotoPending{ margin-top:0; }
   /* الخروج + زرار اللغة يفضلوا في القاع مهما كان طول المحتوى */
-  /* ⬅️ كل بند بياخد نصيب متساوٍ من المساحة الفاضية فوقه وتحته */
+  /* ⬅️ توزيع متساوٍ فعلي: كل بند عنده auto فوق وتحت، ماعدا أول بند
+     (صفر فوق) وآخر بند (صفر تحت). النتيجة: المسافة بين كل بندين
+     متساوية تمامًا من الصورة لحد Sign Out، والصف السفلي ملامس
+     لآخر الشريط — من غير ما تتجمّع المسافة في مكان واحد. */
   body.empScreen .empHeader > *{ margin-block:auto; }
-  /* الخروج + اللغة في آخر نقطة فعلية في الشريط — مع صف واحد دايمًا */
-  body.empScreen .empBottomRow{ margin-top:auto; margin-bottom:0; }
+  body.empScreen .empHeader > *:first-child{ margin-top:0; }
+  body.empScreen .empBottomRow{ margin-bottom:0; }
   body.empScreen .empSignOut{ margin-top:0; }
 
   body.empScreen .empContent{
@@ -2461,6 +2464,15 @@ async function loadEmpAvatar_(){
   if (header) header.style.display = 'block';
   try {
     const r = await empSelf_('photoView');
+    // ⬅️ الرد بيحمل حالة الصورة الحالية من السيرفر. ده المصدر الوحيد
+    //    اللي بيخلي مسار Remember Me يعرف الحالة بعد الـRefresh (مافيش
+    //    طلب Login فيه). ⛔ صفر طلب إضافي — نفس النداء الموجود أصلاً.
+    if (r && r.state) {
+      empLoginState_.hasActivePhoto = !!r.state.hasActivePhoto;
+      empLoginState_.photoRejected  = !!r.state.photoRejected;
+      empLoginState_.canUploadPhoto = !!r.state.canUploadPhoto;
+      refreshPhotoControls_();
+    }
     if (r && r.status === 'ok' && r.file && r.file.base64) {
       img.src = 'data:' + (r.file.mimeType || 'image/jpeg') + ';base64,' + r.file.base64;
       img.style.display = '';
