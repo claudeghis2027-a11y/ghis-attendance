@@ -98,8 +98,9 @@
        الحل: margin-block:auto على كل الأبناء، فالمساحة بتتقسّم
        بالتساوي بينهم، وmargin-top:auto على الصف السفلي بيضمن إنه
        في آخر نقطة فعلية في الشريط. */
+    /* ⛔ صفر gap — الـgap كان بيتنافس مع margin-block:auto على نفس
+       المساحة فيقلّل اللي بيتوزّع. التوزيع كله من الـauto margins. */
     justify-content:flex-start;
-    gap:clamp(10px, 1.6dvh, 22px);          /* حد أدنى بس */
     padding-block:clamp(12px, 2.4dvh, 30px);
   }
   /* تصفير الـmargins القديمة عشان ماتتضاعفش مع الـgap الجديد */
@@ -1106,8 +1107,13 @@ function applyLanguage(lang){
   setText('sbAttendLabel', 'sbAttendance');
   setText('sbPhotoTitle', 'sbPhotoTitle');
   setText('sbPhotoSub', 'sbPhotoSub');
-  // الشارة بتتعاد بناءها بحالتها الحالية باللغة الجديدة
-  try{ refreshPhotoControls_(); }catch(e){}
+  // ⬅️ إعادة بناء نص الشارة باللغة الجديدة **بحالتها الظاهرة حاليًا** —
+  //    من غير ما نلمس ظهور/إخفاء الزرار. النداء القديم لـ
+  //    refreshPhotoControls_ هنا كان بيتنفّذ عند تحميل الصفحة (قبل
+  //    الـLogin) و empLoginState_ لسه افتراضي (canUploadPhoto=false)،
+  //    فكان بيخبّي زرار الصورة ويعرض شارة "قيد المراجعة" كاذبة —
+  //    وده سبب اختفاء الزرار لحد ما تعمل Refresh.
+  try{ relabelPhotoBadge_(); }catch(e){}
   setText('empLangBtn', 'sbLangToggle');
   const langBtnEl = document.getElementById('empLangBtn');
   if (langBtnEl) langBtnEl.setAttribute('aria-label', T('sbLangAria'));
@@ -2472,9 +2478,12 @@ async function loadEmpAvatar_(){
 // ⬅️ ثلاث حالات: قيد المراجعة · مرفوضة · عادية.
 // ⛔ الحالة كلها محسوبة سيرفر-سايد (canUploadPhoto / photoRejected) —
 //    الواجهة بتعرض بس. صفر Backend جديد.
+// ⬅️ الحالة الظاهرة محفوظة على العنصر نفسه، عشان تبديل اللغة يعيد بناء
+//    النص بنفس الحالة بالظبط بدل ما يخمّنها من empLoginState_.
 function setPhotoBadge_(kind){
   const pend = document.getElementById('empPhotoPending');
   if (!pend) return;
+  pend.dataset.state = kind;
   if (kind === 'pending') {
     pend.className = 'empPhotoPending';
     pend.innerHTML = '⏳ ' + T('sbPhotoPending')
@@ -2486,8 +2495,16 @@ function setPhotoBadge_(kind){
       + '<span class="pendSub">' + T('sbPhotoRejectedSub') + '</span>';
     pend.style.display = '';
   } else {
+    pend.className = 'empPhotoPending';
     pend.style.display = 'none';
   }
+}
+
+// ⬅️ إعادة صياغة النص باللغة الجديدة فقط — صفر تغيير في الحالة.
+function relabelPhotoBadge_(){
+  const pend = document.getElementById('empPhotoPending');
+  if (!pend) return;
+  setPhotoBadge_(pend.dataset.state || 'none');
 }
 
 function refreshPhotoControls_(){
@@ -3063,6 +3080,10 @@ window.addEventListener('load', () => {
   //    الكاذب مايظهرش. والصورة الـpending مابتتعرضش (السيرفر بيرجّع
   //    العمود 13 المعتمد بس).
   loadEmpAvatar_();
+  // ⛔ المسار ده مابيعملش طلب Login، فحالة الصورة مش معروفة.
+  //    فبنسيب زرار الصورة على حالته الافتراضية (ظاهر) ومابنعرضش أي شارة
+  //    حالة — أفضل من عرض حالة كاذبة. المنع الحقيقي سيرفر-سايد
+  //    (photo_review_pending) وبقى ليه رسالة مترجمة واضحة.
   try{
     const savedCode = localStorage.getItem('ghs_emp_code');
     if (savedCode) empCodeInput.value = savedCode;
