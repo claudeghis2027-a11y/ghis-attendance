@@ -2101,7 +2101,16 @@ async function loadEmpReport_(fromId, toId, areaId){
   area.innerHTML = '<p class="sub">' + empEsc_(T('nLoading')) + '</p>';
   try {
     const r = await empSelf_('report', { from: from, to: to });
-    if (r.status !== 'ok') { area.innerHTML = '<div class="empNote warn">' + empEsc_(empErrText_(r)) + '</div>'; return; }
+    renderEmpReportInto_(area, r);
+  } catch (err) { area.innerHTML = '<div class="empNote warn">' + empEsc_(T('err_selfServerError')) + '</div>'; }
+}
+
+// ⬅️ Q2/Q3: الرسم اتفصل عن الجلب عشان التقرير المُحمَّل مسبقًا يُرسم
+//    بنفس الدالة بالحرف. ⛔ صفر تغيير في أي سطر HTML أو أي قيمة معروضة.
+function renderEmpReportInto_(area, r){
+  if (!area) return;
+  try {
+    if (!r || r.status !== 'ok') { area.innerHTML = '<div class="empNote warn">' + empEsc_(empErrText_(r || {})) + '</div>'; return; }
     const s = r.summary || {};
     const row = (l, v, u) => '<div class="empRow"><b>' + l + '</b><span>' + (v == null ? '—' : v) + (u || '') + '</span></div>';
     area.innerHTML = '<div style="margin-top:10px">'
@@ -2309,6 +2318,23 @@ async function openEmpNotif_(id){
   const needDocs = keys.indexOf('documents') !== -1;
   // message → صفر طلب بيانات.
 
+  // ⬅️ Q2: التقرير بيتطلب **دلوقتي حالًا** — بالتوازي مع رسم الواجهة
+  //    وتسجيل القراءة، بدل ما يستنى لحد ما كل ده يخلص بالتسلسل.
+  // ⛔ نفس الـop ونفس البارامترات (from/to من الإشعار) — صفر طلب إضافي
+  //    وصفر إعادة جلب للقائمة. الـGeo Gate على 'report' زي ما هو،
+  //    فبرّه المدرسة الطلب بيترفض بنفس الرسالة بالظبط.
+  const reportPromise = (needReport && hasPeriod)
+    ? empSelf_('report', { from: n.reportFrom, to: n.reportTo }).catch(e => null)
+    : null;
+
+  // ⬅️ Q3: تسجيل القراءة مابيوقفش العرض — بيمشي بالتوازي.
+  //    ⛔ نفس الـop ونفس الحماية سيرفر-سايد بالحرف.
+  if (!String(n.readAt || '').trim()) {
+    empSelf_('notificationRead', { id: n.id })
+      .then(rr => { if (rr && rr.status === 'ok') { n.readAt = 'read'; setNotifBadge_(0); } })
+      .catch(() => {});
+  }
+
   let head = '<button class="notifBack" onclick="renderEmpNotifList_()">' + empEsc_(T('nBack')) + '</button>'
     + '<div class="empBox"><h3>' + empEsc_(n.title || '—') + '</h3>'
     // ⬅️ N4: صف "تاريخ الإظهار" اتشال من شاشة الموظف.
@@ -2322,15 +2348,6 @@ async function openEmpNotif_(id){
   el.innerHTML = head;
   empSetWatermark_();
 
-  // ⬅️ تسجيل القراءة — مرة واحدة بس لو لسه مش مقروء. الـBadge بيتعاد
-  //    جلبه من السيرفر بعد النجاح (مصدر الحقيقة Backend، مش الواجهة).
-  if (!String(n.readAt || '').trim()) {
-    try {
-      const rr = await empSelf_('notificationRead', { id: n.id });
-      if (rr && rr.status === 'ok') { n.readAt = 'read'; refreshNotifBadge_(); }
-    } catch (err) { /* القراءة مش حرجة — العرض بيكمل عادي */ }
-  }
-
   const det = document.getElementById('empNotifDetail');
   if (!det || empNotifOpenId_ !== String(n.id)) return;
   if (!needReport && !needProfile && !needDocs) return;
@@ -2338,9 +2355,10 @@ async function openEmpNotif_(id){
   det.innerHTML = '<p class="sub">' + empEsc_(T('nLoadingDetails')) + '</p>';
   try {
     // ⛔ طلب واحد لكل مصدر بيانات على الأكثر — وبالتوازي.
-    const [prof, docs] = await Promise.all([
+    const [prof, docs, rep] = await Promise.all([
       needProfile ? empSelf_('profile') : Promise.resolve(null),
       needDocs ? empSelf_('documents') : Promise.resolve(null),
+      reportPromise || Promise.resolve(null),   // ⬅️ Q3: التلاتة بالتوازي
     ]);
     if (empNotifOpenId_ !== String(n.id)) return;   // الموظف قفل الإشعار في الوقت ده
     let h = '';
@@ -2398,7 +2416,11 @@ async function openEmpNotif_(id){
 
     det.innerHTML = h;
     if (needReport && hasPeriod) {
-      loadEmpReport_('empNotifFrom', 'empNotifTo', 'empNotifReportArea');
+      // ⬅️ Q2: الرد وصل بالفعل — بنرسمه على طول. لو الطلب فشل لأي سبب
+      //    (Geo Gate برّه المدرسة مثلاً) بنرجع للمسار العادي بالحرف.
+      const area = document.getElementById('empNotifReportArea');
+      if (rep) renderEmpReportInto_(area, rep);
+      else loadEmpReport_('empNotifFrom', 'empNotifTo', 'empNotifReportArea');
     } else if (needReport) {
       const now = new Date();
       const p2 = v => String(v).padStart(2, '0');
