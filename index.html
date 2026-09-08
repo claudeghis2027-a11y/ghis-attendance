@@ -1946,9 +1946,11 @@ async function runFaceVerification(operationType, btn){
       }
       if (liveDetection.status === 'ok') {
         const distance = window.faceapi.euclideanDistance(referenceDescriptor, liveDetection.descriptor);
+        // ⬅️ Logging: نفس القيمة اللي القرار اتبنى عليها بالحرف — بلا تقريب
+        //    وبلا أي تعديل. ⛔ الشرط والـthreshold زي ما هما.
         matchOutcome = distance <= FACE_MATCH_DISTANCE_THRESHOLD
-          ? { outcome: 'match' }
-          : { outcome: 'no_match' };
+          ? { outcome: 'match', distance: distance }
+          : { outcome: 'no_match', distance: distance };
         break;
       }
       // no_face — استمرار المحاولة لحد الـTimeout
@@ -1979,7 +1981,8 @@ async function runFaceVerification(operationType, btn){
   if (!proofResp || proofResp.status !== 'ok' || !proofResp.proofToken) {
     return { outcome: 'technical_failure' };
   }
-  return { outcome: 'match', proofToken: proofResp.proofToken };
+  // ⬅️ Logging: بنحافظ على distance بدل ما تضيع في إعادة بناء الكائن.
+  return { outcome: 'match', distance: matchOutcome.distance, proofToken: proofResp.proofToken };
 }
 
 try{
